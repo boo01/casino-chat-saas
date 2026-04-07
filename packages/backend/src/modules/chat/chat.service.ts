@@ -145,26 +145,23 @@ export class ChatService {
     query: string,
     limit: number = 50,
   ) {
-    // Simple text search in content
-    const messages = await this.prismaService.message.findMany({
-      where: {
-        tenantId,
-        channelId,
-        content: {
-          search: query,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    // Use raw SQL for text search on JSON content field
+    // content->>'text' extracts the text value from the JSON content column
+    const messages = await this.prismaService.$queryRaw`
+      SELECT * FROM "Message"
+      WHERE "tenant_id" = ${tenantId}
+        AND "channel_id" = ${channelId}
+        AND "content"->>'text' ILIKE ${'%' + query + '%'}
+      ORDER BY "created_at" DESC
+      LIMIT ${limit}
+    `;
 
     return messages;
   }
 
   async getMessageById(tenantId: string, messageId: string) {
-    // Try cache first
-    const cacheKey = `chat:message:${tenantId}:*:${messageId}`;
-    const cached = await this.redisService.get(cacheKey);
+    // Fall back to database directly — Redis GET doesn't support wildcards
+    const cached: string | null = null;
 
     if (cached) {
       try {

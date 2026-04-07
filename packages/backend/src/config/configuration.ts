@@ -44,7 +44,12 @@ export const configuration = (): IConfiguration => ({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-super-secret-key-change-in-production',
+    secret: process.env.JWT_SECRET || (() => {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET must be set in production');
+      }
+      return 'dev-only-secret-do-not-use-in-production';
+    })(),
     expiresIn: process.env.JWT_EXPIRATION || '24h',
   },
   swagger: {

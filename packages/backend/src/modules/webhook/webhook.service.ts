@@ -139,8 +139,8 @@ export class WebhookService {
         tenantId,
         channelId,
         initiatedById: 'webhook',
-        totalAmount: BigInt(Math.floor(amount * 100)) / 100n,
-        perPlayerAmount: BigInt(Math.floor(perPlayerAmount * 100)) / 100n,
+        totalAmount: Math.floor(amount * 100) / 100,
+        perPlayerAmount: Math.floor(perPlayerAmount * 100) / 100,
         durationSeconds,
       },
     });

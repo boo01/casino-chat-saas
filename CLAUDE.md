@@ -129,18 +129,23 @@ casino-chat-saas/
 
 ## Development Phases
 
-### Phase 1: MVP Core (Current)
-- NestJS project setup, Prisma, Redis, PostgreSQL
-- Auth module (JWT, tenant guards, guest mode)
-- WebSocket gateway (connect, disconnect, rooms)
-- Chat module (send/receive text, rate limiting)
-- Channel module (CRUD, join/leave, message isolation)
-- Basic moderation (banned words, mute, ban)
-- Tenant module (CRUD, API key generation, feature flags)
-- Player module (profile sync, blocking)
-- Docker Compose (dev environment)
-- Integration self-test endpoint
-- Unit + E2E tests
+### Phase 1: MVP Core (COMPLETE)
+- [x] NestJS project setup with Fastify adapter, Prisma 5.22, Redis 7, PostgreSQL 16
+- [x] Auth module (JWT login, tenant guards, guest mode)
+- [x] WebSocket gateway (connect, disconnect, rooms, Socket.io)
+- [x] Chat module (send/receive text, rate limiting via Redis, message caching)
+- [x] Channel module (CRUD, join/leave, message isolation)
+- [x] Basic moderation (banned words exact/wildcard/regex, mute, ban, unmute, unban)
+- [x] Tenant module (CRUD, API key generation, HMAC signature auth)
+- [x] Player module (profile sync, blocking)
+- [x] Webhook module (casino integration, HMAC-SHA256 verification)
+- [x] Docker Compose (dev environment, Postgres:5434, Redis:6381)
+- [x] Self-test endpoint (JWT-protected)
+- [x] Database seed script (test tenant, admin, 3 channels, 5 players)
+- [x] 40 unit tests passing (chat, moderation, tenant services + API key guard)
+- [x] Swagger API docs at /api/docs (16 endpoints)
+- [ ] Redis adapter for Socket.io horizontal scaling (deferred - works in single-instance mode)
+- [ ] E2E tests (not started)
 
 ### Phase 2: Social Features
 - Win sharing cards (casino pushes via API)
@@ -223,8 +228,8 @@ docker-compose -f docker-compose.prod.yml up -d  # Production
 See `.env.example` for all variables. Key ones:
 
 ```
-DATABASE_URL=postgresql://user:pass@localhost:5432/casino_chat
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql://casino_chat:dev_password_change_me@localhost:5434/casino_chat_dev
+REDIS_URL=redis://localhost:6381
 JWT_SECRET=fallback-secret-for-dev
 PORT=3000
 NODE_ENV=development

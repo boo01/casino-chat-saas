@@ -12,7 +12,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { SelfTestModule } from './modules/self-test/self-test.module';
-import { ChatGateway } from './gateway/chat.gateway';
+import { GatewayModule } from './gateway/gateway.module';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/validation';
 
@@ -29,25 +29,17 @@ import { configValidationSchema } from './config/validation';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        defaultOptions: {
-          settings: {
-            lockDuration: 30000,
-            lockRenewTime: 15000,
-            maxStalledCount: 2,
-            maxStalledInterval: 5000,
-            maxRepeatedErrors: 5,
-            retryProcessDelay: 5000,
-            stalledInterval: 5000,
-            stalledRenewTime: 30000,
-            guardInterval: 5000,
+      useFactory: (configService: ConfigService) => {
+        const redisUrl = new URL(
+          configService.get<string>('redis.url', 'redis://localhost:6379'),
+        );
+        return {
+          redis: {
+            host: redisUrl.hostname,
+            port: parseInt(redisUrl.port || '6379', 10),
           },
-        },
-        url: configService.get<string>(
-          'redis.url',
-          'redis://localhost:6379',
-        ),
-      }),
+        };
+      },
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
@@ -60,7 +52,7 @@ import { configValidationSchema } from './config/validation';
     ModerationModule,
     WebhookModule,
     SelfTestModule,
+    GatewayModule,
   ],
-  providers: [ChatGateway],
 })
 export class AppModule {}

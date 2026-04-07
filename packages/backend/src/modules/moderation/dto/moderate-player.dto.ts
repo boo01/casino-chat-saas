@@ -16,6 +16,14 @@ export class ModeratePlayerDto {
   reason!: string;
 
   @ApiProperty({
+    example: 'mod-player-123',
+    description: 'ID of the moderator performing the action',
+  })
+  @IsOptional()
+  @IsString()
+  moderatorId?: string;
+
+  @ApiProperty({
     example: 60,
     description: 'Duration in minutes (optional)',
   })

@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TenantService } from './tenant.service';
 import { TenantController } from './tenant.controller';
 import { PrismaModule } from 'src/common/prisma/prisma.module';
+import { AuthModule } from 'src/modules/auth/auth.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [TenantController],
   providers: [TenantService],
   exports: [TenantService],

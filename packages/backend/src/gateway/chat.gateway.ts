@@ -47,11 +47,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private redisService: RedisService,
   ) {}
 
-  async afterInit(server: Server) {
-    const redisClient = await this.redisService.getClient();
-    const adapter = createAdapter(redisClient, redisClient);
-    server.adapter(adapter);
-    this.logger.log('Socket.io Redis adapter initialized');
+  async afterInit() {
+    try {
+      const pubClient = await this.redisService.getPubClient();
+      const subClient = await this.redisService.getSubClient();
+      this.server.adapter(createAdapter(pubClient, subClient) as any);
+      this.logger.log('Socket.io Redis adapter initialized');
+    } catch (error) {
+      this.logger.warn('Redis adapter setup failed, using default adapter:', error);
+    }
   }
 
   async handleConnection(socket: Socket) {

@@ -1,33 +1,25 @@
-version: '3.8'
-
 services:
   # PostgreSQL 16 - Primary Database
   postgres:
     image: postgres:16-alpine
     container_name: casino-chat-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-casino_chat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
-      POSTGRES_DB: ${POSTGRES_DB:-casino_chat_dev}
+      POSTGRES_USER: casino_chat
+      POSTGRES_PASSWORD: dev_password_change_me
+      POSTGRES_DB: casino_chat_dev
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U casino_chat"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U casino_chat -d casino_chat_dev"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - casino-chat-network
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # Redis 7 - Cache & Pub/Sub
   redis:
@@ -38,58 +30,21 @@ services:
       - "--appendonly"
       - "yes"
       - "--maxmemory"
-      - "1gb"
+      - "256mb"
       - "--maxmemory-policy"
       - "allkeys-lru"
     ports:
-      - "6379:6379"
+      - "6381:6379"
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - casino-chat-network
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # PgBouncer - PostgreSQL Connection Pooler
-  pgbouncer:
-    image: pgbouncer:latest
-    container_name: casino-chat-pgbouncer
-    environment:
-      DATABASES_HOST: postgres
-      DATABASES_PORT: 5432
-      DATABASES_USER: casino_chat
-      DATABASES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
-      DATABASES_DBNAME: casino_chat_dev
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 1000
-      PGBOUNCER_DEFAULT_POOL_SIZE: 25
-      PGBOUNCER_MIN_POOL_SIZE: 10
-      PGBOUNCER_RESERVE_POOL_SIZE: 5
-      PGBOUNCER_RESERVE_POOL_TIMEOUT: 5
-      PGBOUNCER_SERVER_LIFETIME: 3600
-      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
-    ports:
-      - "6432:6432"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - casino-chat-network
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # Adminer - Database Management UI (for development only)
   adminer:
@@ -108,71 +63,13 @@ services:
     profiles:
       - debug
 
-  # Redis Commander - Redis Management UI (for development only)
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: casino-chat-redis-commander
-    environment:
-      REDIS_HOSTS: "local:redis:6379"
-    ports:
-      - "8081:8081"
-    depends_on:
-      - redis
-    networks:
-      - casino-chat-network
-    restart: unless-stopped
-    profiles:
-      - debug
-
-  # Mailhog - Email Testing (for development only)
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: casino-chat-mailhog
-    ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
-    networks:
-      - casino-chat-network
-    restart: unless-stopped
-    profiles:
-      - debug
-
-  # MinIO - S3-compatible Storage (for development/testing)
-  minio:
-    image: minio/minio:latest
-    container_name: casino-chat-minio
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Console
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - casino-chat-network
-    restart: unless-stopped
-    profiles:
-      - storage
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  minio_data:
     driver: local
 
 networks:
   casino-chat-network:
     driver: bridge
     name: casino-chat-network
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16

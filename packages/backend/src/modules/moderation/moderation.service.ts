@@ -133,10 +133,35 @@ export class ModerationService {
         );
         break;
       case ModerationAction.BAN:
-        await this.prismaService.player.update({
-          where: { id: playerId },
-          data: { /* mark as banned somehow */ },
+        // Create a player block record
+        const blockedUntil = moderatePlayerDto.durationMinutes
+          ? new Date(Date.now() + moderatePlayerDto.durationMinutes * 60 * 1000)
+          : null;
+        await this.prismaService.playerBlock.create({
+          data: {
+            tenantId,
+            playerId,
+            blockedByPlayerId: moderatePlayerDto.moderatorId || 'system',
+            reason: moderatePlayerDto.reason || 'Banned by moderator',
+            blockedUntil,
+            isPermanent: !moderatePlayerDto.durationMinutes,
+          },
         });
+        // Also set in Redis for fast lookups during WS connection
+        const banTtl = moderatePlayerDto.durationMinutes
+          ? moderatePlayerDto.durationMinutes * 60
+          : 0; // 0 = no expiry for permanent bans
+        if (banTtl > 0) {
+          await this.redisService.set(`banned:${tenantId}:${playerId}`, '1', banTtl);
+        } else {
+          await this.redisService.set(`banned:${tenantId}:${playerId}`, '1');
+        }
+        break;
+      case ModerationAction.UNBAN:
+        await this.prismaService.playerBlock.deleteMany({
+          where: { tenantId, playerId },
+        });
+        await this.redisService.del(`banned:${tenantId}:${playerId}`);
         break;
       case ModerationAction.UNMUTE:
         await this.redisService.del(`muted:${tenantId}:${playerId}`);
@@ -155,6 +180,41 @@ export class ModerationService {
       `muted:${tenantId}:${playerId}`,
     );
     return !!isMuted;
+  }
+
+  async isPlayerBanned(tenantId: string, playerId: string): Promise<boolean> {
+    // Check Redis first (fast path)
+    const isBanned = await this.redisService.get(
+      `banned:${tenantId}:${playerId}`,
+    );
+    if (isBanned) return true;
+
+    // Fallback to DB for permanent bans or if Redis expired
+    const block = await this.prismaService.playerBlock.findFirst({
+      where: {
+        tenantId,
+        playerId,
+        OR: [
+          { isPermanent: true },
+          { blockedUntil: { gt: new Date() } },
+        ],
+      },
+    });
+
+    if (block) {
+      // Re-cache in Redis
+      if (block.isPermanent) {
+        await this.redisService.set(`banned:${tenantId}:${playerId}`, '1');
+      } else if (block.blockedUntil) {
+        const ttl = Math.ceil((block.blockedUntil.getTime() - Date.now()) / 1000);
+        if (ttl > 0) {
+          await this.redisService.set(`banned:${tenantId}:${playerId}`, '1', ttl);
+        }
+      }
+      return true;
+    }
+
+    return false;
   }
 
   async getModerationLogs(
