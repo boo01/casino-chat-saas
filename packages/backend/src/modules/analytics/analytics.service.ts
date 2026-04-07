@@ -51,7 +51,7 @@ export class AnalyticsService {
       _count: true,
     });
 
-    const levelRanges = await this.prisma.$queryRaw<Array<{ range: string; count: bigint }>>`
+    const levelRangesRaw = await this.prisma.$queryRaw<Array<{ range: string; count: bigint }>>`
       SELECT
         CASE
           WHEN level BETWEEN 1 AND 5 THEN '1-5'
@@ -66,6 +66,12 @@ export class AnalyticsService {
       GROUP BY range
       ORDER BY range
     `;
+
+    // Convert BigInt to Number for JSON serialization
+    const levelRanges = levelRangesRaw.map((r) => ({
+      range: r.range,
+      count: Number(r.count),
+    }));
 
     return { vipDistribution, levelRanges };
   }

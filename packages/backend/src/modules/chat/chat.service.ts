@@ -17,6 +17,15 @@ interface SendMessagePayload {
   replyToId?: string;
 }
 
+// Convert BigInt fields to strings for JSON serialization
+function serializeMessage(msg: any): any {
+  if (!msg) return msg;
+  return {
+    ...msg,
+    sequenceNum: msg.sequenceNum?.toString?.() ?? msg.sequenceNum,
+  };
+}
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -75,11 +84,13 @@ export class ChatService {
       },
     });
 
+    const serialized = serializeMessage(message);
+
     // Cache message in Redis
     const messageKey = `chat:message:${tenantId}:${channelId}:${message.id}`;
     await this.redisService.set(
       messageKey,
-      JSON.stringify(message),
+      JSON.stringify(serialized),
       86400,
     ); // 24h TTL
 
@@ -87,7 +98,7 @@ export class ChatService {
     const channelMessagesKey = `chat:messages:${tenantId}:${channelId}`;
     await this.redisService.lpush(
       channelMessagesKey,
-      JSON.stringify(message),
+      JSON.stringify(serialized),
     );
 
     // Trim to keep only last 1000 messages in Redis
@@ -95,7 +106,7 @@ export class ChatService {
 
     this.logger.debug(`Message created: ${message.id}`);
 
-    return message;
+    return serialized;
   }
 
   async getChannelHistory(
@@ -128,15 +139,17 @@ export class ChatService {
       skip: offset,
     });
 
+    const serialized = messages.map(serializeMessage);
+
     // Cache results
-    for (const message of messages) {
+    for (const message of serialized) {
       await this.redisService.lpush(
         channelMessagesKey,
         JSON.stringify(message),
       );
     }
 
-    return messages.reverse();
+    return serialized.reverse();
   }
 
   async searchMessages(
@@ -180,7 +193,7 @@ export class ChatService {
       throw new NotFoundException('Message not found');
     }
 
-    return message;
+    return serializeMessage(message);
   }
 
   async deleteMessage(tenantId: string, messageId: string) {

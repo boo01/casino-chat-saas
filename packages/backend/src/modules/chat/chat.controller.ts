@@ -17,10 +17,10 @@ export class ChatController {
   async getMessages(
     @Param('tenantId') tenantId: string,
     @Param('channelId') channelId: string,
-    @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.chatService.getChannelHistory(tenantId, channelId, limit, offset);
+    return this.chatService.getChannelHistory(tenantId, channelId, Number(limit) || 50, Number(offset) || 0);
   }
 
   @Post()
