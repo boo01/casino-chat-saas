@@ -1,0 +1,466 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TenantTier {
+  BASIC
+  SOCIAL
+  ENGAGE
+  MONETIZE
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  MODERATOR
+}
+
+enum MessageType {
+  TEXT
+  WIN
+  SYSTEM
+  RAIN
+  TRIVIA
+  PROMO
+  TIP
+}
+
+enum MessageSource {
+  PLAYER
+  SYSTEM
+  OPERATOR
+  MODERATOR
+  BOT
+}
+
+enum BannedWordMatchType {
+  EXACT
+  WILDCARD
+  REGEX
+}
+
+enum ModerationAction {
+  MUTE
+  BAN
+  DELETE
+  WARN
+  UNBAN
+  UNMUTE
+}
+
+enum ReportCategory {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE
+  BOT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum RainStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALLTIME
+}
+
+enum VIPStatus {
+  NONE
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum PremiumStyle {
+  NONE
+  GRADIENT
+  NEON
+  HOLOGRAPHIC
+  CUSTOM
+}
+
+// Models
+model Tenant {
+  id String @id @default(cuid())
+  name String
+  domain String @unique
+  apiKey String @unique @map("api_key")
+  apiSecretHash String @map("api_secret_hash")
+  tier TenantTier @default(BASIC)
+  isActive Boolean @default(true) @map("is_active")
+  config Json @default("{}")
+  webhookUrl String? @map("webhook_url")
+  allowedIps String[] @default([]) @map("allowed_ips")
+  branding Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  admins TenantAdmin[]
+  channels Channel[]
+  players Player[]
+  playerBlocks PlayerBlock[]
+  messages Message[]
+  bannedWords BannedWord[]
+  moderationLogs ModerationLog[]
+  reports Report[]
+  tipTransactions TipTransaction[]
+  rainEvents RainEvent[]
+  promoCards PromoCard[]
+  triviaQuestions TriviaQuestion[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([isActive])
+  @@index([tier])
+}
+
+model TenantAdmin {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  email String
+  passwordHash String @map("password_hash")
+  role AdminRole @default(ADMIN)
+  permissions Json @default("{}")
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  moderationLogs ModerationLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+}
+
+model Channel {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  name String
+  emoji String @default("💬")
+  language String @default("en")
+  description String @default("")
+  sortOrder Int @default(0) @map("sort_order")
+  isActive Boolean @default(true) @map("is_active")
+  settings Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages Message[]
+  rainEvents RainEvent[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+}
+
+model Player {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  externalId String? @map("external_id")
+  username String
+  avatarUrl String? @map("avatar_url")
+  level Int @default(1)
+  vipStatus VIPStatus @default(NONE) @map("vip_status")
+  isPremium Boolean @default(false) @map("is_premium")
+  premiumStyle PremiumStyle @default(NONE) @map("premium_style")
+  totalWagered Decimal @default(0) @db.Decimal(20, 2) @map("total_wagered")
+  favoriteGame String? @map("favorite_game")
+  winCount Int @default(0) @map("win_count")
+  isModerator Boolean @default(false) @map("is_moderator")
+  isStreamer Boolean @default(false) @map("is_streamer")
+  lastSeenAt DateTime? @map("last_seen_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages Message[]
+  blockedByPlayers PlayerBlock[] @relation("BlockedBy")
+  blockedPlayers PlayerBlock[] @relation("Blocker")
+  sentTips TipTransaction[] @relation("SentTips")
+  receivedTips TipTransaction[] @relation("ReceivedTips")
+  rainClaims RainClaim[]
+  sentReports Report[] @relation("Reporter")
+  reportedReports Report[] @relation("Reported")
+  reviewedReports Report[] @relation("Reviewer")
+  moderationLogs ModerationLog[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@unique([tenantId, externalId])
+  @@index([tenantId])
+  @@index([tenantId, username])
+  @@index([tenantId, vipStatus])
+  @@index([tenantId, lastSeenAt])
+}
+
+model PlayerBlock {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  playerId String @map("player_id")
+  blockedByPlayerId String @map("blocked_by")
+  reason String @default("")
+  blockedUntil DateTime? @map("blocked_until")
+  isPermanent Boolean @default(false) @map("is_permanent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  player Player @relation("Blocker", fields: [playerId], references: [id], onDelete: Cascade)
+  blockedByPlayer Player @relation("BlockedBy", fields: [blockedByPlayerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, blockedByPlayerId])
+  @@index([tenantId])
+  @@index([playerId])
+  @@index([blockedByPlayerId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  channelId String @map("channel_id")
+  playerId String? @map("player_id")
+  type MessageType @default(TEXT)
+  source MessageSource @default(PLAYER)
+  content Json
+  replyToId String? @map("reply_to_id")
+  sequenceNum BigInt @map("sequence_num")
+  searchVector String? @map("search_vector")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, channelId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([playerId])
+}
+
+model BannedWord {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  word String
+  matchType BannedWordMatchType @default(EXACT) @map("match_type")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, word])
+  @@index([tenantId])
+}
+
+model ModerationLog {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  moderatorId String @map("moderator_id")
+  targetPlayerId String? @map("target_player_id")
+  action ModerationAction
+  reason String @default("")
+  durationMinutes Int? @map("duration_minutes")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  moderator TenantAdmin @relation(fields: [moderatorId], references: [id], onDelete: Cascade)
+  targetPlayer Player? @relation(fields: [targetPlayerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([targetPlayerId])
+}
+
+model Report {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  reporterId String @map("reporter_id")
+  reportedPlayerId String @map("reported_player_id")
+  messageId String? @map("message_id")
+  reason String
+  category ReportCategory
+  status ReportStatus @default(PENDING)
+  reviewedByAdminId String? @map("reviewed_by_admin_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reporter Player @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedPlayer Player @relation("Reported", fields: [reportedPlayerId], references: [id], onDelete: Cascade)
+  reviewedByAdmin Player? @relation("Reviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([reportedPlayerId])
+  @@index([tenantId, createdAt])
+}
+
+model TipTransaction {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  senderId String @map("sender_id")
+  receiverId String @map("receiver_id")
+  amount Decimal @db.Decimal(20, 2)
+  currency String @default("USD")
+  status TransactionStatus @default(PENDING)
+  casinoTxId String? @map("casino_tx_id")
+  isPublic Boolean @default(true) @map("is_public")
+  message String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sender Player @relation("SentTips", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver Player @relation("ReceivedTips", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([tenantId, createdAt])
+}
+
+model RainEvent {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  channelId String @map("channel_id")
+  initiatedById String @map("initiated_by")
+  totalAmount Decimal @db.Decimal(20, 2) @map("total_amount")
+  currency String @default("USD")
+  perPlayerAmount Decimal @db.Decimal(20, 2) @map("per_player_amount")
+  durationSeconds Int @map("duration_seconds")
+  minLevel Int @default(1) @map("min_level")
+  minWagered Decimal @default(0) @db.Decimal(20, 2) @map("min_wagered")
+  claimantCount Int @default(0) @map("claimant_count")
+  status RainStatus @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  claims RainClaim[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([tenantId, createdAt])
+}
+
+model RainClaim {
+  id String @id @default(cuid())
+  rainEventId String @map("rain_event_id")
+  playerId String @map("player_id")
+  amount Decimal @db.Decimal(20, 2)
+  casinoTxId String? @map("casino_tx_id")
+  status TransactionStatus @default(PENDING)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  rainEvent RainEvent @relation(fields: [rainEventId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([rainEventId, playerId])
+  @@index([rainEventId])
+  @@index([playerId])
+}
+
+model PromoCard {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  title String
+  subtitle String @default("")
+  detailText String @default("") @map("detail_text")
+  ctaText String @default("") @map("cta_text")
+  ctaUrl String @default("") @map("cta_url")
+  emoji String @default("🎉")
+  accentColor String @default("#FF6B6B") @map("accent_color")
+  schedule Json @default("{}")
+  isActive Boolean @default(true) @map("is_active")
+  insertionRules Json @default("{}") @map("insertion_rules")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+}
+
+model TriviaQuestion {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  question String
+  options Json
+  correctIndex Int @map("correct_index")
+  rewardAmount Decimal @db.Decimal(20, 2) @map("reward_amount")
+  rewardCurrency String @default("USD") @map("reward_currency")
+  difficulty Difficulty @default(MEDIUM)
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@index([difficulty])
+}
+
+model LeaderboardEntry {
+  id String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  playerId String @map("player_id")
+  period LeaderboardPeriod
+  wagered Decimal @db.Decimal(20, 2)
+  rank Int
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, playerId, period])
+  @@index([tenantId, period])
+  @@index([tenantId, period, rank])
+}

@@ -1,0 +1,147 @@
+# ==================== Dependencies ====================
+node_modules/
+npm-debug.log
+npm-debug.log.*
+pnpm-debug.log
+pnpm-debug.log.*
+yarn-error.log
+# Keep package-lock.json committed for reproducible builds
+pnpm-lock.yaml
+yarn.lock
+
+# ==================== Build Output ====================
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ==================== Environment & Secrets ====================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.test
+.env.staging
+.secrets/
+secrets.json
+
+# ==================== IDE & Editor ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swc
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+.AppleDouble
+.LSOverride
+*.code-workspace
+.history/
+.ionide/
+
+# ==================== Development ====================
+.cache/
+.temp/
+tmp/
+temp/
+
+# ==================== Logs ====================
+logs/
+log/
+*.log
+*.log.*
+
+# ==================== Runtime ====================
+coverage/
+.nyc_output/
+*.pid
+*.seed
+*.pid.lock
+
+# ==================== Testing ====================
+test-results/
+junit.xml
+coverage.xml
+.mocha_output
+.test_results
+
+# ==================== Database ====================
+*.db
+*.sqlite
+*.sqlite3
+*.backup
+
+# ==================== Docker ====================
+.docker/
+docker-compose.override.yml
+
+# ==================== OS ====================
+.DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
+._*
+.TemporaryItems
+
+# ==================== Credentials & Keys ====================
+*.key
+*.pem
+*.p12
+*.pfx
+.ssh/
+private_key
+public_key
+certificate.crt
+
+# ==================== Cache ====================
+.eslintcache
+.prettierignore
+.cache/
+dist/
+site/
+
+# ==================== Temporary Files ====================
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# ==================== System ====================
+.env.local.backup
+backup/
+archives/
+
+# ==================== IDE-specific ====================
+.vscode/settings.json
+.vscode/extensions.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# ==================== Project-specific ====================
+uploads/
+downloads/
+exports/
+imports/
+reports/
+
+# ==================== CI/CD ====================
+.github/workflows/secrets.yml
+.gitlab-ci.yml.backup
+
+# ==================== Documentation ====================
+# Keep .md files but ignore generated docs
+docs/generated/
+docs/dist/
+site/
+
+# ==================== Backup Files ====================
+*.backup
+*.bak
+*.orig
+
+# ==================== Misc ====================
+.envrc
+.dirlocal
+local.conf
