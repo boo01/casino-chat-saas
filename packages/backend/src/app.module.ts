@@ -19,6 +19,7 @@ import { RainModule } from './modules/rain/rain.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { HealthModule } from './common/health/health.module';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/validation';
 
@@ -65,6 +66,7 @@ import { configValidationSchema } from './config/validation';
     LeaderboardModule,
     AnalyticsModule,
     GatewayModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
