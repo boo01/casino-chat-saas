@@ -5,9 +5,10 @@ import { PlayerModule } from 'src/modules/player/player.module';
 import { ModerationModule } from 'src/modules/moderation/moderation.module';
 import { ChannelModule } from 'src/modules/channel/channel.module';
 import { RedisModule } from 'src/common/redis/redis.module';
+import { AuthModule } from 'src/modules/auth/auth.module';
 
 @Module({
-  imports: [ChatModule, PlayerModule, ModerationModule, ChannelModule, RedisModule],
+  imports: [ChatModule, PlayerModule, ModerationModule, ChannelModule, RedisModule, AuthModule],
   providers: [ChatGateway],
   exports: [ChatGateway],
 })

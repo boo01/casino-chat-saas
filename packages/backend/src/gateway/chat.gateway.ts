@@ -8,7 +8,9 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, BadRequestException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { ChatService } from 'src/modules/chat/chat.service';
 import { PlayerService } from 'src/modules/player/player.service';
 import { ModerationService } from 'src/modules/moderation/moderation.service';
@@ -29,7 +31,7 @@ interface TypingEvent {
 @WebSocketGateway({
   namespace: 'chat',
   cors: {
-    origin: 'http://localhost:3001',
+    origin: '*',
     credentials: true,
   },
   transports: ['websocket', 'polling'],
@@ -45,6 +47,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private moderationService: ModerationService,
     private channelService: ChannelService,
     private redisService: RedisService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async afterInit() {
@@ -64,6 +68,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!tenantId) {
         this.logger.warn('Connection attempt without tenantId');
+        socket.emit('error', { code: 'MISSING_TENANT', message: 'tenantId is required' });
         socket.disconnect();
         return;
       }
@@ -72,17 +77,54 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       socket.data.connectedAt = Date.now();
 
       if (token) {
-        // Player connected with JWT
-        socket.data.isGuest = false;
-        this.logger.log(
-          `Player connected: ${socket.id} (tenant: ${tenantId})`,
-        );
+        try {
+          // Verify JWT
+          const payload = this.jwtService.verify(token, {
+            secret: this.configService.get<string>('jwt.secret'),
+          });
 
-        // Join user-specific room for direct messages
-        socket.join(`user:${socket.data.player?.id}`);
+          // Load player from DB
+          const player = await this.playerService.getPlayerByExternalId(
+            tenantId,
+            payload.externalId || payload.playerId,
+          );
+
+          if (player) {
+            // Check if player is banned
+            const isBanned = await this.moderationService.isPlayerBanned(tenantId, player.id);
+            if (isBanned) {
+              socket.emit('error', { code: 'BANNED', message: 'You are banned from chat' });
+              socket.disconnect();
+              return;
+            }
+
+            socket.data.player = player;
+            socket.data.isGuest = false;
+
+            // Join user-specific room
+            socket.join(`user:${player.id}`);
+            socket.join(`tenant:${tenantId}`);
+
+            // Update last seen
+            await this.playerService.updateLastSeen(tenantId, player.id);
+
+            this.logger.log(`Player ${player.username} connected: ${socket.id} (tenant: ${tenantId})`);
+          } else {
+            // Token valid but player not found — treat as guest
+            socket.data.isGuest = true;
+            socket.join(`tenant:${tenantId}`);
+            this.logger.log(`Unknown player connected as guest: ${socket.id}`);
+          }
+        } catch (err) {
+          // Invalid token — connect as guest
+          socket.data.isGuest = true;
+          socket.join(`tenant:${tenantId}`);
+          this.logger.warn(`Invalid JWT, connecting as guest: ${(err as Error).message}`);
+        }
       } else {
         // Guest connection (read-only)
         socket.data.isGuest = true;
+        socket.join(`tenant:${tenantId}`);
         this.logger.log(`Guest connected: ${socket.id} (tenant: ${tenantId})`);
       }
 
@@ -90,6 +132,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       socket.emit('connection:established', {
         socketId: socket.id,
         isGuest: socket.data.isGuest,
+        player: socket.data.player
+          ? {
+              id: socket.data.player.id,
+              username: socket.data.player.username,
+              avatarUrl: socket.data.player.avatarUrl,
+              level: socket.data.player.level,
+              vipStatus: socket.data.player.vipStatus,
+              isPremium: socket.data.player.isPremium,
+              premiumStyle: socket.data.player.premiumStyle,
+              isModerator: socket.data.player.isModerator,
+              isStreamer: socket.data.player.isStreamer,
+            }
+          : null,
       });
     } catch (error) {
       this.logger.error('Connection error:', error);
@@ -99,21 +154,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleDisconnect(socket: Socket) {
     const tenantId = socket.data.tenantId;
-    const playerId = socket.data.player?.id;
+    const player = socket.data.player;
 
-    if (playerId) {
-      await this.playerService.updateLastSeen(tenantId, playerId);
+    if (player) {
+      await this.playerService.updateLastSeen(tenantId, player.id);
 
-      // Broadcast user leaving all channels
-      socket.broadcast.emit('player:disconnected', {
-        playerId,
-        username: socket.data.player?.username,
+      // Broadcast to tenant
+      this.server.to(`tenant:${tenantId}`).emit('player:disconnected', {
+        playerId: player.id,
+        username: player.username,
       });
     }
 
-    this.logger.log(
-      `Socket disconnected: ${socket.id} (tenant: ${tenantId})`,
-    );
+    this.logger.log(`Socket disconnected: ${socket.id} (tenant: ${tenantId})`);
   }
 
   @SubscribeMessage('channel:join')
@@ -125,40 +178,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const { tenantId, player, isGuest } = socket.data;
       const { channelId } = data;
 
-      // Validate channel exists
-      const channel = await this.channelService.getChannel(
-        tenantId,
-        channelId,
-      );
+      const channel = await this.channelService.getChannel(tenantId, channelId);
 
-      // Join channel room
       socket.join(`channel:${channelId}`);
 
-      // Get message history
-      const messages = await this.chatService.getChannelHistory(
-        tenantId,
-        channelId,
-        100,
-      );
+      const messages = await this.chatService.getChannelHistory(tenantId, channelId, 100);
 
-      // Send history and presence
+      // Get online count for this channel
+      const sockets = await this.server.in(`channel:${channelId}`).fetchSockets();
+      const onlineCount = sockets.length;
+
       socket.emit('channel:joined', {
         channelId,
         channel,
         messages,
+        onlineCount,
         isGuest,
       });
 
-      // Broadcast user presence
-      if (!isGuest) {
+      if (!isGuest && player) {
         this.server.to(`channel:${channelId}`).emit('player:joined', {
           playerId: player.id,
           username: player.username,
           avatarUrl: player.avatarUrl,
+          level: player.level,
+          vipStatus: player.vipStatus,
         });
       }
 
-      this.logger.log(`Player ${player?.id} joined channel ${channelId}`);
+      this.logger.log(`${player?.username || 'Guest'} joined channel ${channelId}`);
     } catch (error) {
       socket.emit('error', { message: error instanceof Error ? error.message : 'Failed to join channel' });
     }
@@ -174,14 +222,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     socket.leave(`channel:${channelId}`);
 
-    if (!socket.data.isGuest) {
+    if (!socket.data.isGuest && player) {
       this.server.to(`channel:${channelId}`).emit('player:left', {
         playerId: player.id,
         username: player.username,
       });
     }
-
-    this.logger.log(`Player ${player?.id} left channel ${channelId}`);
   }
 
   @SubscribeMessage('chat:message')
@@ -194,67 +240,66 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const { channelId, text, replyToId } = data;
 
       if (isGuest) {
-        throw new BadRequestException('Guests cannot send messages');
-      }
-
-      if (!text || typeof text !== 'string' || text.trim().length === 0) {
-        throw new BadRequestException('Message content is required');
-      }
-
-      // Check if player is muted
-      const isMuted = await this.moderationService.isPlayerMuted(
-        tenantId,
-        player.id,
-      );
-
-      if (isMuted) {
-        socket.emit('error', { message: 'You are muted' });
+        socket.emit('error', { code: 'GUEST_READONLY', message: 'Guests cannot send messages' });
         return;
       }
 
-      // Check for banned words
-      const contentCheck = await this.moderationService.checkContentForBannedWords(
-        tenantId,
-        text,
-      );
+      if (!player) {
+        socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
+        return;
+      }
 
+      if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        socket.emit('error', { message: 'Message content is required' });
+        return;
+      }
+
+      if (text.length > 500) {
+        socket.emit('error', { message: 'Message too long (max 500 characters)' });
+        return;
+      }
+
+      // Check mute
+      const isMuted = await this.moderationService.isPlayerMuted(tenantId, player.id);
+      if (isMuted) {
+        socket.emit('error', { code: 'MUTED', message: 'You are muted' });
+        return;
+      }
+
+      // Check banned words
+      const contentCheck = await this.moderationService.checkContentForBannedWords(tenantId, text);
       if (contentCheck.isBanned) {
-        socket.emit('error', {
-          message: 'Your message contains prohibited content',
-        });
+        socket.emit('error', { code: 'BANNED_CONTENT', message: 'Your message contains prohibited content' });
         return;
       }
 
       // Check rate limit
-      const rateLimit = await this.chatService.getRateLimitStatus(
-        tenantId,
-        player.id,
-      );
-
+      const rateLimit = await this.chatService.getRateLimitStatus(tenantId, player.id);
       if (rateLimit.isLimited) {
         socket.emit('error', {
+          code: 'RATE_LIMITED',
           message: `Rate limited. Please wait ${rateLimit.resetIn}s`,
+          resetIn: rateLimit.resetIn,
         });
         return;
       }
 
-      // Create message
       const message = await this.chatService.sendMessage({
         tenantId,
         channelId,
         playerId: player.id,
         type: MessageType.TEXT,
         source: MessageSource.PLAYER,
-        content: { text },
+        content: { text: text.trim() },
         replyToId,
       });
 
-      // Broadcast to channel
       this.server.to(`channel:${channelId}`).emit('message:received', {
         id: message.id,
         playerId: player.id,
         username: player.username,
         avatarUrl: player.avatarUrl,
+        level: player.level,
         vipStatus: player.vipStatus,
         isPremium: player.isPremium,
         premiumStyle: player.premiumStyle,
@@ -266,10 +311,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         createdAt: message.createdAt,
         sequenceNum: message.sequenceNum.toString(),
       });
-
-      this.logger.debug(
-        `Message sent by ${player.username} in ${channelId}`,
-      );
     } catch (error) {
       socket.emit('error', { message: error instanceof Error ? error.message : 'Failed to send message' });
     }
@@ -283,30 +324,98 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { player } = socket.data;
     const { channelId, isTyping } = data;
 
-    if (!player) {
-      return;
-    }
+    if (!player) return;
 
-    this.server.to(`channel:${channelId}`).emit('player:typing', {
+    socket.to(`channel:${channelId}`).emit('player:typing', {
       playerId: player.id,
       username: player.username,
       isTyping,
     });
   }
 
-  @SubscribeMessage('presence:update')
-  async handlePresenceUpdate(
+  @SubscribeMessage('rain:claim')
+  async handleRainClaim(
     @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { rainId: string },
   ) {
+    try {
+      const { tenantId, player, isGuest } = socket.data;
+
+      if (isGuest || !player) {
+        socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'Authentication required to claim rain' });
+        return;
+      }
+
+      // Check if rain is still active in Redis
+      const rainData = await this.redisService.get(`rain:${tenantId}:${data.rainId}`);
+      if (!rainData) {
+        socket.emit('error', { code: 'RAIN_EXPIRED', message: 'Rain event has ended' });
+        return;
+      }
+
+      // Emit claim to the player
+      socket.emit('rain:claimed', {
+        rainId: data.rainId,
+        playerId: player.id,
+        username: player.username,
+      });
+
+      // Broadcast to channel
+      this.server.to(`tenant:${tenantId}`).emit('rain:claimed', {
+        rainId: data.rainId,
+        playerId: player.id,
+        username: player.username,
+      });
+    } catch (error) {
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Failed to claim rain' });
+    }
+  }
+
+  @SubscribeMessage('trivia:answer')
+  async handleTriviaAnswer(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { triviaId: string; answerIndex: number },
+  ) {
+    const { tenantId, player } = socket.data;
+
+    if (!player) {
+      socket.emit('error', { message: 'Authentication required' });
+      return;
+    }
+
+    // Broadcast answer to tenant
+    this.server.to(`tenant:${tenantId}`).emit('trivia:answered', {
+      triviaId: data.triviaId,
+      playerId: player.id,
+      username: player.username,
+      answerIndex: data.answerIndex,
+    });
+  }
+
+  @SubscribeMessage('presence:update')
+  async handlePresenceUpdate(@ConnectedSocket() socket: Socket) {
     const { tenantId, player } = socket.data;
 
     if (player) {
       await this.playerService.updateLastSeen(tenantId, player.id);
 
-      this.server.emit('player:presence', {
+      this.server.to(`tenant:${tenantId}`).emit('player:presence', {
         playerId: player.id,
         lastSeenAt: new Date(),
       });
     }
+  }
+
+  // Public methods for broadcasting from other services
+  broadcastToChannel(channelId: string, event: string, data: any) {
+    this.server.to(`channel:${channelId}`).emit(event, data);
+  }
+
+  broadcastToTenant(tenantId: string, event: string, data: any) {
+    this.server.to(`tenant:${tenantId}`).emit(event, data);
+  }
+
+  broadcastToPlayer(playerId: string, event: string, data: any) {
+    this.server.to(`user:${playerId}`).emit(event, data);
   }
 }
