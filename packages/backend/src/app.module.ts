@@ -13,6 +13,11 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { SelfTestModule } from './modules/self-test/self-test.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { PromoModule } from './modules/promo/promo.module';
+import { TriviaModule } from './modules/trivia/trivia.module';
+import { RainModule } from './modules/rain/rain.module';
+import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/validation';
@@ -54,6 +59,11 @@ import { configValidationSchema } from './config/validation';
     WebhookModule,
     SelfTestModule,
     SuperAdminModule,
+    PromoModule,
+    TriviaModule,
+    RainModule,
+    LeaderboardModule,
+    AnalyticsModule,
     GatewayModule,
   ],
 })
