@@ -127,48 +127,41 @@ casino-chat-saas/
 - Headers: `X-Api-Key`, `X-Timestamp`, `X-Signature`
 - Win events, rain triggers, player updates all use this pattern
 
-## Development Phases
+## Implementation Plan
 
-### Phase 1: MVP Core (COMPLETE)
-- [x] NestJS project setup with Fastify adapter, Prisma 5.22, Redis 7, PostgreSQL 16
-- [x] Auth module (JWT login, tenant guards, guest mode)
-- [x] WebSocket gateway (connect, disconnect, rooms, Socket.io)
-- [x] Chat module (send/receive text, rate limiting via Redis, message caching)
-- [x] Channel module (CRUD, join/leave, message isolation)
-- [x] Basic moderation (banned words exact/wildcard/regex, mute, ban, unmute, unban)
-- [x] Tenant module (CRUD, API key generation, HMAC signature auth)
-- [x] Player module (profile sync, blocking)
-- [x] Webhook module (casino integration, HMAC-SHA256 verification)
-- [x] Docker Compose (dev environment, Postgres:5434, Redis:6381)
-- [x] Self-test endpoint (JWT-protected)
-- [x] Database seed script (test tenant, admin, 3 channels, 5 players)
-- [x] 40 unit tests passing (chat, moderation, tenant services + API key guard)
-- [x] Swagger API docs at /api/docs (16 endpoints)
-- [ ] Redis adapter for Socket.io horizontal scaling (deferred - works in single-instance mode)
-- [ ] E2E tests (not started)
+**SEE `IMPLEMENTATION_PLAN.md` for the full step-by-step guide with 10 phases.**
 
-### Phase 2: Social Features
-- Win sharing cards (casino pushes via API)
-- Reactions & likes
-- GIF/Emoji support (Tenor API)
-- Player profiles & avatars
-- Quote/reply threading
-- Wager-gated access
-- Admin panel MVP (React)
+### Current Status
 
-### Phase 3: Engagement
-- Rain events engine
-- Trivia/challenges system
-- Promo cards (configurable)
-- Leaderboard widget
-- Player levels & badges
-- Analytics dashboard
+| Component | Status | Details |
+|-----------|--------|---------|
+| Backend scaffold | ~60% | 52 TS files, 8 modules, compiles but needs testing against real DB |
+| Prisma schema | Done | 15 models, 12 enums — needs SuperAdmin model added |
+| Super Admin + Permissions | NOT STARTED | Phase 2 in plan |
+| Seeder | Basic | Has 1 tenant, 5 players. Needs super_admin, 2nd test casino |
+| Widget SDK (Preact) | NOT STARTED | Phase 6 in plan |
+| Admin Panel (React) | NOT STARTED | Phase 7 in plan |
+| Integration SDK | NOT STARTED | Phase 8 in plan |
+| Tests | Minimal | Need unit + e2e tests |
 
-### Phase 4: Monetization
-- P2P tipping (webhook to casino)
-- Paid chat privileges
-- Streamer mode
-- AI moderation (premium add-on)
+### Phase Order
+1. Boot & Verify Backend (fix build errors, run against real DB)
+2. Super Admin & Permissions System
+3. Complete Seeder (super_admin, test casino with full data)
+4. Backend API Completion (all CRUD endpoints, pagination, feature gates)
+5. WebSocket Gateway Completion (all events, ban checks, rain/trivia)
+6. Widget SDK — Preact Embeddable Chat
+7. Admin Panel — React Dashboard (same dark theme as prototype)
+8. Casino Integration SDK & Docs
+9. Testing (unit + e2e)
+10. DevOps & Production Readiness
+
+### Design Reference
+The prototype at `casino-chat-simulator-main/` defines the UI design system:
+- Dark theme: page=#080C14, chat=#0d121d, card=#111827, input=#1F2937
+- Tier colors: basic=#22C55E, social=#3B82F6, engage=#F59E0B, monetize=#EF4444
+- Font: system stack, 13px base
+- Both widget AND admin panel use this same dark gaming aesthetic
 
 ## Key Design Decisions
 

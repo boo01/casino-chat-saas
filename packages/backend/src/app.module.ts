@@ -12,6 +12,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { SelfTestModule } from './modules/self-test/self-test.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/validation';
@@ -52,6 +53,7 @@ import { configValidationSchema } from './config/validation';
     ModerationModule,
     WebhookModule,
     SelfTestModule,
+    SuperAdminModule,
     GatewayModule,
   ],
 })

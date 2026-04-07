@@ -11,6 +11,25 @@ datasource db {
 }
 
 // Enums
+enum SuperAdminRole {
+  SUPER    // full platform access
+  ADMIN    // can manage tenants, view analytics
+  SUPPORT  // read-only, can view tenant issues
+}
+
+enum TenantPermission {
+  MANAGE_CHANNELS
+  MANAGE_PLAYERS
+  MANAGE_MODERATION
+  MANAGE_BANNED_WORDS
+  VIEW_ANALYTICS
+  MANAGE_PROMO
+  MANAGE_RAIN
+  MANAGE_TRIVIA
+  MANAGE_SETTINGS
+  MANAGE_ADMINS
+}
+
 enum TenantTier {
   BASIC
   SOCIAL
@@ -114,6 +133,21 @@ enum PremiumStyle {
 }
 
 // Models
+
+// Platform-level admin (manages all tenants)
+model SuperAdmin {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  name         String
+  role         SuperAdminRole @default(ADMIN)
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([email])
+}
+
 model Tenant {
   id String @id @default(cuid())
   name String
@@ -154,7 +188,7 @@ model TenantAdmin {
   email String
   passwordHash String @map("password_hash")
   role AdminRole @default(ADMIN)
-  permissions Json @default("{}")
+  permissions TenantPermission[] @default([])
   isActive Boolean @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
