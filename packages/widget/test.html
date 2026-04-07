@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino Chat Widget Test</title>
+  <style>
+    body { margin: 0; background: #1a1a2e; color: white; font-family: sans-serif; padding: 40px; }
+    h1 { color: #FFD700; }
+    p { color: #9CA3AF; }
+    .config { background: #111827; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    code { color: #22C55E; }
+  </style>
+</head>
+<body>
+  <h1>Casino Chat Widget Test Page</h1>
+  <p>The chat widget should appear in the bottom-right corner.</p>
+  <div class="config">
+    <p><strong>Configuration:</strong></p>
+    <p>Tenant: Lucky Star Casino</p>
+    <p>Mode: Guest (read-only)</p>
+    <p>Server: <code>http://localhost:3000</code></p>
+  </div>
+  <p>Click the chat bubble to open the widget.</p>
+
+  <link rel="stylesheet" href="./dist/casino-chat.css">
+  <script src="./dist/casino-chat.umd.js"></script>
+  <script>
+    // Replace with your actual tenant ID after running the seeder
+    CasinoChat.CasinoChat.init({
+      tenantId: 'YOUR_TENANT_ID',
+      serverUrl: 'http://localhost:3000',
+      theme: {
+        primaryColor: '#6366F1',
+        position: 'bottom-right',
+        width: 380,
+        height: 600,
+      },
+    });
+  </script>
+</body>
+</html>
