@@ -7,6 +7,7 @@ import {
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
@@ -49,6 +50,15 @@ async function bootstrap() {
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization,X-Api-Key,X-Timestamp,X-Signature',
+  });
+
+  // Serve widget dist files for embed preview
+  const widgetDistPath = join(process.cwd(), '..', 'widget', 'dist');
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+  fastifyInstance.register(require('@fastify/static'), {
+    root: widgetDistPath,
+    prefix: '/widget-assets/',
+    decorateReply: false,
   });
 
   // Swagger Documentation

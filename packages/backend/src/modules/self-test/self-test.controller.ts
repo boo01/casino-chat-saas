@@ -9,7 +9,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CurrentPlayer } from 'src/common/decorators/player.decorator';
 
 @ApiTags('health')
-@Controller('self-test')
+@Controller('api/self-test')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('jwt-auth')
 export class SelfTestController {

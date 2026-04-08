@@ -153,6 +153,7 @@ model Tenant {
   name String
   domain String @unique
   apiKey String @unique @map("api_key")
+  apiSecret String @default("") @map("api_secret")
   apiSecretHash String @map("api_secret_hash")
   tier TenantTier @default(BASIC)
   isActive Boolean @default(true) @map("is_active")

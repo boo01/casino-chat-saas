@@ -1,5 +1,50 @@
 # Casino Chat SaaS - Project Guide
 
+## Agent System
+
+When the user describes a task, automatically determine which part of the codebase is affected and spawn the appropriate specialist agent(s) using the Agent tool. Do NOT ask the user which agent to use — decide yourself.
+
+**Routing rules:**
+- **Backend agent** — NestJS code, API endpoints, services, guards, Prisma schema, database, Redis, WebSocket gateway, tests. Working dir: `packages/backend/`
+- **Admin agent** — React admin panel, pages, components, routing, Tailwind styles, Vite config. Working dir: `packages/admin/`
+- **Widget agent** — Preact chat widget, SDK, embeddable bundle, socket client. Working dir: `packages/widget/`
+- **Shared agent** — Shared types, constants, utils used across packages. Working dir: `packages/shared/`
+- **DevOps agent** — Docker, docker-compose, CI/CD, deployment, env config. Working dir: project root.
+
+**How to delegate:**
+1. Read the user's request and identify affected packages
+2. If it touches ONE package → spawn one specialist agent
+3. If it touches MULTIPLE packages → spawn agents in parallel, each scoped to its package
+4. If it's cross-cutting (e.g. "add a new feature end-to-end") → break into sub-tasks, spawn agents in parallel where possible, coordinate results
+5. After agents complete, verify the work compiles and summarize what was done
+
+**Dependency ordering — when parallel is NOT safe:**
+- If the task adds/changes **shared types** → finish shared first, then spawn backend + widget + admin
+- If the task adds a **new API endpoint** that frontend consumes → finish backend first (define the API shape), then spawn widget/admin with the exact endpoint + payload spec
+- If the task changes **Prisma schema** → finish backend (migrate + generate) before any agent that imports Prisma types
+- Rule of thumb: if agent B needs to know something agent A produces (types, endpoint shape, DB schema), run A first and pass the result to B's prompt
+
+**When spawning agents, always include in the prompt:**
+- What to do (the specific task scoped to that package)
+- Why (context from the user's request)
+- Any constraints or dependencies on other agents' work
+- "Read the CLAUDE.md in your working directory for conventions"
+
+**Cross-cutting change rule:**
+When a change affects shared contracts (API endpoints, WebSocket events, DB schema, shared types, auth flow, DTO shapes), EVERY agent whose package could be impacted MUST be informed — even if their package isn't being modified right now. Include in their prompt:
+- What changed (exact field/endpoint/type name)
+- How it affects their package (e.g., "the login response now includes `isSuperAdmin`, admin panel should check this")
+- Whether they need to act on it now or just be aware
+This prevents agents from building on stale assumptions. Examples:
+- Backend changes a DTO → admin + widget agents must know the new response shape
+- Shared types add a field → backend + admin + widget agents must know
+- Auth flow changes → every agent that touches auth must be informed
+
+**Do NOT delegate when:**
+- The task is a simple question or explanation
+- It's a one-file edit you can do directly
+- The user is asking for advice, not implementation
+
 ## Project Overview
 
 Casino Chat SaaS (CasinoChat Pro) is a real-time embeddable chat widget platform for online casino operators. Casino operators embed the widget on their sites via JavaScript SDK or iframe. The platform provides 18 features across 4 pricing tiers (Basic, Social, Engage, Monetize).

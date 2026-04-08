@@ -18,4 +18,14 @@ export class TokenResponseDto {
     description: 'Token expiration time in seconds',
   })
   expiresIn!: number;
+
+  @ApiProperty({
+    description: 'Admin details',
+  })
+  admin!: {
+    id: string;
+    email: string;
+    tenantId: string | null;
+    role: string;
+  };
 }

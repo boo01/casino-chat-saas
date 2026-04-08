@@ -70,6 +70,7 @@ async function main() {
       name: 'Lucky Star Casino',
       domain: 'luckystar.test',
       apiKey: ls.apiKey,
+      apiSecret: ls.apiSecret,
       apiSecretHash: ls.apiSecretHash,
       tier: TenantTier.MONETIZE,
       webhookUrl: 'http://localhost:4000/webhooks',
@@ -317,6 +318,7 @@ async function main() {
       name: 'Bet Royal',
       domain: 'betroyal.test',
       apiKey: br.apiKey,
+      apiSecret: br.apiSecret,
       apiSecretHash: br.apiSecretHash,
       tier: TenantTier.BASIC,
       branding: {

@@ -8,7 +8,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loginType, setLoginType] = useState<'tenant' | 'super'>('tenant');
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -18,22 +17,20 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const url = loginType === 'super' ? '/super-admin/auth/login' : '/auth/login';
-      // For tenant admin, use /auth/login directly (not under /api)
-      const baseUrl = loginType === 'super' ? '/api' : '';
-      const res = await (loginType === 'super'
-        ? api.post('/super-admin/auth/login', { email, password })
-        : api.post('/auth/login', { email, password }));
-
+      const res = await api.post('/auth/login', { email, password });
       const data = res.data;
-      const user = loginType === 'super'
-        ? { ...data.admin, isSuperAdmin: true }
-        : { id: data.accessToken, email, role: 'ADMIN' };
-
+      const isSuperAdmin = data.admin?.role?.startsWith('SUPER_') || false;
+      const user = {
+        id: data.admin?.id || data.id,
+        email,
+        role: data.admin?.role || 'ADMIN',
+        tenantId: data.admin?.tenantId || null,
+        isSuperAdmin,
+      };
       login(data.accessToken, user);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError('Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -44,21 +41,6 @@ export function LoginPage() {
       <div className="w-full max-w-md bg-card rounded-xl border border-border p-8">
         <h1 className="text-2xl font-bold text-text-primary mb-2">CasinoChat Admin</h1>
         <p className="text-text-muted mb-6">Sign in to manage your casino chat</p>
-
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setLoginType('tenant')}
-            className={`flex-1 py-2 text-sm rounded-lg ${loginType === 'tenant' ? 'bg-indigo-600 text-white' : 'bg-input text-text-secondary'}`}
-          >
-            Tenant Admin
-          </button>
-          <button
-            onClick={() => setLoginType('super')}
-            className={`flex-1 py-2 text-sm rounded-lg ${loginType === 'super' ? 'bg-indigo-600 text-white' : 'bg-input text-text-secondary'}`}
-          >
-            Super Admin
-          </button>
-        </div>
 
         {error && <div className="bg-red-900/30 border border-red-500/30 text-red-400 rounded-lg p-3 mb-4 text-sm">{error}</div>}
 

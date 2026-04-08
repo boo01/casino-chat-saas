@@ -16,7 +16,7 @@ import { TenantResponseDto } from './dto/tenant-response.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @ApiTags('tenants')
-@Controller('tenants')
+@Controller('api/tenants')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('jwt-auth')
 export class TenantController {

@@ -16,7 +16,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CurrentPlayer } from 'src/common/decorators/player.decorator';
 
 @ApiTags('channels')
-@Controller('channels')
+@Controller('api/channels')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('jwt-auth')
 export class ChannelController {

@@ -23,33 +23,68 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<TokenResponseDto> {
     const { email, password } = loginDto;
 
+    // Check TenantAdmin first
     const admin = await this.prismaService.tenantAdmin.findFirst({
       where: { email, isActive: true },
     });
 
-    if (!admin) {
-      this.logger.warn(`Login attempt with non-existent email: ${email}`);
-      throw new UnauthorizedException('Invalid email or password');
-    }
+    if (admin) {
+      const isPasswordValid = await bcrypt.compare(password, admin.passwordHash);
+      if (!isPasswordValid) {
+        this.logger.warn(`Failed login attempt for admin: ${email}`);
+        throw new UnauthorizedException('Invalid email or password');
+      }
 
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      admin.passwordHash,
-    );
-
-    if (!isPasswordValid) {
-      this.logger.warn(`Failed login attempt for admin: ${email}`);
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const expiresIn = this.configService.get<string>('jwt.expiresIn', '24h');
-
-    const token = this.jwtService.sign(
-      {
+      return this.generateToken({
         id: admin.id,
         tenantId: admin.tenantId,
         email: admin.email,
         role: admin.role,
+        isSuperAdmin: false,
+      });
+    }
+
+    // Check SuperAdmin
+    const superAdmin = await this.prismaService.superAdmin.findFirst({
+      where: { email, isActive: true },
+    });
+
+    if (superAdmin) {
+      const isPasswordValid = await bcrypt.compare(password, superAdmin.passwordHash);
+      if (!isPasswordValid) {
+        this.logger.warn(`Failed login attempt for super admin: ${email}`);
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      return this.generateToken({
+        id: superAdmin.id,
+        tenantId: null,
+        email: superAdmin.email,
+        role: superAdmin.role,
+        isSuperAdmin: true,
+      });
+    }
+
+    this.logger.warn(`Login attempt with non-existent email: ${email}`);
+    throw new UnauthorizedException('Invalid email or password');
+  }
+
+  private generateToken(payload: {
+    id: string;
+    tenantId: string | null;
+    email: string;
+    role: string;
+    isSuperAdmin: boolean;
+  }): TokenResponseDto {
+    const expiresIn = this.configService.get<string>('jwt.expiresIn', '24h');
+
+    const token = this.jwtService.sign(
+      {
+        id: payload.id,
+        tenantId: payload.tenantId,
+        email: payload.email,
+        role: payload.role,
+        isSuperAdmin: payload.isSuperAdmin,
       },
       {
         secret: this.configService.get<string>(
@@ -64,6 +99,12 @@ export class AuthService {
       accessToken: token,
       tokenType: 'Bearer',
       expiresIn: this.convertExpiresInToSeconds(expiresIn),
+      admin: {
+        id: payload.id,
+        email: payload.email,
+        tenantId: payload.tenantId,
+        role: payload.isSuperAdmin ? `SUPER_${payload.role}` : payload.role,
+      },
     };
   }
 

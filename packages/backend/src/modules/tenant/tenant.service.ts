@@ -54,6 +54,7 @@ export class TenantService {
         name,
         domain,
         apiKey,
+        apiSecret,
         apiSecretHash,
         tier,
         webhookUrl,
@@ -162,7 +163,7 @@ export class TenantService {
 
     await this.prismaService.tenant.update({
       where: { id },
-      data: { apiKey, apiSecretHash },
+      data: { apiKey, apiSecret, apiSecretHash },
     });
 
     this.logger.log(`API key regenerated for tenant: ${id}`);
@@ -176,6 +177,7 @@ export class TenantService {
       name: tenant.name,
       domain: tenant.domain,
       apiKey: tenant.apiKey,
+      apiSecret: tenant.apiSecret,
       tier: tenant.tier,
       isActive: tenant.isActive,
       webhookUrl: tenant.webhookUrl,

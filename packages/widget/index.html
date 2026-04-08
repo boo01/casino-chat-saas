@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino Chat Widget - Dev</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0B0E17;
+      color: #E5E7EB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+    }
+    .site-header {
+      background: #111827;
+      border-bottom: 1px solid #1F2937;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .site-logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFD700;
+    }
+    .site-nav { display: flex; gap: 24px; }
+    .site-nav a {
+      color: #9CA3AF;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .site-content {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 32px;
+    }
+    .hero {
+      text-align: center;
+      padding: 60px 0;
+    }
+    .hero h1 {
+      font-size: 36px;
+      color: #F9FAFB;
+      margin-bottom: 12px;
+    }
+    .hero p { color: #6B7280; font-size: 16px; }
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 40px;
+    }
+    .game-card {
+      background: #111827;
+      border: 1px solid #1F2937;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .game-card .emoji { font-size: 48px; margin-bottom: 12px; }
+    .game-card h3 { color: #F9FAFB; font-size: 14px; margin-bottom: 4px; }
+    .game-card p { color: #6B7280; font-size: 12px; }
+    .dev-banner {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #6366F1;
+      color: white;
+      padding: 4px 16px;
+      border-radius: 0 0 8px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 99999;
+    }
+  </style>
+</head>
+<body>
+  <div class="dev-banner">Widget Dev Mode</div>
+
+  <header class="site-header">
+    <div class="site-logo">Lucky Star Casino</div>
+    <nav class="site-nav">
+      <a href="#">Games</a>
+      <a href="#">Promotions</a>
+      <a href="#">VIP</a>
+      <a href="#">Support</a>
+    </nav>
+  </header>
+
+  <div class="site-content">
+    <div class="hero">
+      <h1>Welcome to Lucky Star</h1>
+      <p>The chat widget should appear in the bottom-right corner. Click the bubble to open it.</p>
+    </div>
+    <div class="games-grid">
+      <div class="game-card"><div class="emoji">🎰</div><h3>Mega Slots</h3><p>500+ games</p></div>
+      <div class="game-card"><div class="emoji">🃏</div><h3>Blackjack</h3><p>Live dealer</p></div>
+      <div class="game-card"><div class="emoji">🎲</div><h3>Roulette</h3><p>European & American</p></div>
+      <div class="game-card"><div class="emoji">🏆</div><h3>Poker</h3><p>Texas Hold'em</p></div>
+      <div class="game-card"><div class="emoji">⚽</div><h3>Sports</h3><p>Live betting</p></div>
+      <div class="game-card"><div class="emoji">🎯</div><h3>Crash</h3><p>Provably fair</p></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { CasinoChat } from './src/index.ts';
+
+    // Use the first tenant ID from your seed, or replace with your own
+    // Run: curl http://localhost:3000/api/super-admin/tenants -H "Authorization: Bearer <token>" to get IDs
+    CasinoChat.init({
+      tenantId: 'dev-tenant',
+      serverUrl: 'http://localhost:3000',
+      theme: {
+        primaryColor: '#6366F1',
+        position: 'bottom-right',
+        width: 380,
+        height: 600,
+      },
+    });
+  </script>
+</body>
+</html>

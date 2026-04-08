@@ -15,6 +15,9 @@ export class TenantResponseDto {
   apiKey!: string;
 
   @ApiProperty()
+  apiSecret!: string;
+
+  @ApiProperty()
   tier!: TenantTier;
 
   @ApiProperty()

@@ -33,9 +33,9 @@ describe('AppController (e2e)', () => {
   });
 
   describe('Auth (e2e)', () => {
-    it('POST /auth/login should require valid credentials', () => {
+    it('POST /api/auth/login should require valid credentials', () => {
       return request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/auth/login')
         .send({
           email: 'test@test.com',
           password: 'wrong',

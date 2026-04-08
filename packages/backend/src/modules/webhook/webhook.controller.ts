@@ -15,7 +15,7 @@ interface CasinoWebhookPayload {
 }
 
 @ApiTags('webhooks')
-@Controller('webhooks')
+@Controller('api/webhooks')
 export class WebhookController {
   constructor(private webhookService: WebhookService) {}
 

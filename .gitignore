@@ -145,3 +145,6 @@ site/
 .envrc
 .dirlocal
 local.conf
+
+
+packages/casino-chat-simulator-main
