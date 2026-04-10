@@ -3,123 +3,234 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Casino Chat Widget - Dev</title>
+  <title>Casino Chat - Dev</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0B0E17;
-      color: #E5E7EB;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      min-height: 100vh;
+    html, body { height: 100%; background: #080C14; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #chat { width: 100%; height: 100%; }
+    /* Dev login overlay */
+    .dev-login {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #080C14; z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
     }
-    .site-header {
-      background: #111827;
-      border-bottom: 1px solid #1F2937;
-      padding: 16px 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .dev-login__card {
+      background: #111827; border: 1px solid #1F2937; border-radius: 12px;
+      padding: 32px; width: 360px;
     }
-    .site-logo {
-      font-size: 20px;
-      font-weight: 700;
-      color: #FFD700;
+    .dev-login__card h2 { color: #F9FAFB; font-size: 20px; margin-bottom: 4px; }
+    .dev-login__card p { color: #6B7280; font-size: 13px; margin-bottom: 20px; }
+    .dev-login__card label { display: block; color: #9CA3AF; font-size: 12px; margin-bottom: 4px; }
+    .dev-login__card select, .dev-login__card input {
+      width: 100%; background: #1F2937; border: 1px solid #374151; border-radius: 8px;
+      padding: 10px 12px; color: #F9FAFB; font-size: 13px; margin-bottom: 12px; outline: none;
     }
-    .site-nav { display: flex; gap: 24px; }
-    .site-nav a {
-      color: #9CA3AF;
-      text-decoration: none;
-      font-size: 14px;
+    .dev-login__card select:focus, .dev-login__card input:focus { border-color: #6366F1; }
+    .dev-login__card button {
+      width: 100%; background: #6366F1; color: white; border: none; border-radius: 8px;
+      padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px;
     }
-    .site-content {
-      max-width: 960px;
-      margin: 40px auto;
-      padding: 0 32px;
-    }
-    .hero {
-      text-align: center;
-      padding: 60px 0;
-    }
-    .hero h1 {
-      font-size: 36px;
-      color: #F9FAFB;
-      margin-bottom: 12px;
-    }
-    .hero p { color: #6B7280; font-size: 16px; }
-    .games-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-top: 40px;
-    }
-    .game-card {
-      background: #111827;
-      border: 1px solid #1F2937;
-      border-radius: 12px;
-      padding: 24px;
-      text-align: center;
-    }
-    .game-card .emoji { font-size: 48px; margin-bottom: 12px; }
-    .game-card h3 { color: #F9FAFB; font-size: 14px; margin-bottom: 4px; }
-    .game-card p { color: #6B7280; font-size: 12px; }
-    .dev-banner {
-      position: fixed;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #6366F1;
-      color: white;
-      padding: 4px 16px;
-      border-radius: 0 0 8px 8px;
-      font-size: 11px;
-      font-weight: 600;
-      z-index: 99999;
-    }
+    .dev-login__card button:hover { background: #4F46E5; }
+    .dev-login__card button.guest { background: #374151; margin-top: 8px; }
+    .dev-login__card button.guest:hover { background: #4B5563; }
+    .dev-login__card .divider { text-align: center; color: #6B7280; font-size: 12px; margin: 12px 0; }
+    .dev-login__card .error { color: #EF4444; font-size: 12px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <div class="dev-banner">Widget Dev Mode</div>
-
-  <header class="site-header">
-    <div class="site-logo">Lucky Star Casino</div>
-    <nav class="site-nav">
-      <a href="#">Games</a>
-      <a href="#">Promotions</a>
-      <a href="#">VIP</a>
-      <a href="#">Support</a>
-    </nav>
-  </header>
-
-  <div class="site-content">
-    <div class="hero">
-      <h1>Welcome to Lucky Star</h1>
-      <p>The chat widget should appear in the bottom-right corner. Click the bubble to open it.</p>
-    </div>
-    <div class="games-grid">
-      <div class="game-card"><div class="emoji">🎰</div><h3>Mega Slots</h3><p>500+ games</p></div>
-      <div class="game-card"><div class="emoji">🃏</div><h3>Blackjack</h3><p>Live dealer</p></div>
-      <div class="game-card"><div class="emoji">🎲</div><h3>Roulette</h3><p>European & American</p></div>
-      <div class="game-card"><div class="emoji">🏆</div><h3>Poker</h3><p>Texas Hold'em</p></div>
-      <div class="game-card"><div class="emoji">⚽</div><h3>Sports</h3><p>Live betting</p></div>
-      <div class="game-card"><div class="emoji">🎯</div><h3>Crash</h3><p>Provably fair</p></div>
+  <div id="dev-login" class="dev-login">
+    <div class="dev-login__card">
+      <h2>Casino Chat Dev</h2>
+      <p>Connect as a player to test the chat widget</p>
+      <div id="login-error" class="error" style="display:none"></div>
+      <label>Tenant</label>
+      <select id="tenant-select">
+        <option value="">Loading tenants...</option>
+      </select>
+      <label>Player</label>
+      <select id="player-select">
+        <option value="">Select a tenant first</option>
+      </select>
+      <button id="btn-connect" onclick="connectAsPlayer()">Connect as Player</button>
+      <div class="divider">or</div>
+      <button class="guest" onclick="connectAsGuest()">Connect as Guest (read-only)</button>
     </div>
   </div>
+  <div id="chat"></div>
 
   <script type="module">
     import { CasinoChat } from './src/index.ts';
 
-    // Use the first tenant ID from your seed, or replace with your own
-    // Run: curl http://localhost:3000/api/super-admin/tenants -H "Authorization: Bearer <token>" to get IDs
-    CasinoChat.init({
-      tenantId: 'dev-tenant',
-      serverUrl: 'http://localhost:3000',
-      theme: {
-        primaryColor: '#6366F1',
-        position: 'bottom-right',
-        width: 380,
-        height: 600,
-      },
+    const API = 'http://localhost:3000';
+
+    // Fetch tenants list (using super admin)
+    async function loadTenants() {
+      try {
+        const loginRes = await fetch(API + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'super@casinochat.com', password: 'SuperAdmin123!' })
+        });
+        const loginData = await loginRes.json();
+        if (!loginData.accessToken) throw new Error('Login failed');
+
+        const res = await fetch(API + '/api/super-admin/tenants', {
+          headers: { Authorization: 'Bearer ' + loginData.accessToken }
+        });
+        const tenants = await res.json();
+
+        const select = document.getElementById('tenant-select');
+        select.innerHTML = '<option value="">Select a tenant</option>';
+        tenants.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.name + ' (' + t.tier + ')';
+          opt.dataset.token = loginData.accessToken;
+          select.appendChild(opt);
+        });
+      } catch (e) {
+        document.getElementById('login-error').textContent = 'Failed to load tenants: ' + e.message;
+        document.getElementById('login-error').style.display = 'block';
+      }
+    }
+
+    // Fetch players for selected tenant
+    document.getElementById('tenant-select').addEventListener('change', async function() {
+      const tenantId = this.value;
+      const pSelect = document.getElementById('player-select');
+      if (!tenantId) {
+        pSelect.innerHTML = '<option value="">Select a tenant first</option>';
+        return;
+      }
+
+      try {
+        // Login as tenant admin to get players
+        const adminEmails = {
+          // Try common admin emails
+        };
+        // Use super admin token to get tenant details, then use tenant admin
+        const saToken = this.selectedOptions[0].dataset.token;
+
+        // Get players via tenant-scoped endpoint (need tenant admin token)
+        // For dev, let's try to find the owner admin for this tenant
+        const tenantRes = await fetch(API + '/api/tenants/' + tenantId, {
+          headers: { Authorization: 'Bearer ' + saToken }
+        });
+
+        // Get players - use super admin to list (we'll need to get a tenant admin token)
+        // Simpler: use owner login
+        const owners = [
+          { email: 'owner@luckystar.test', password: 'Owner123!' },
+          { email: 'owner@betroyal.test', password: 'Owner123!' },
+        ];
+
+        let token = null;
+        for (const o of owners) {
+          try {
+            const r = await fetch(API + '/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(o)
+            });
+            const d = await r.json();
+            if (d.accessToken && d.admin?.tenantId === tenantId) {
+              token = d.accessToken;
+              break;
+            }
+          } catch {}
+        }
+
+        if (!token) {
+          pSelect.innerHTML = '<option value="">No admin found for this tenant</option>';
+          return;
+        }
+
+        const playersRes = await fetch(API + '/api/players', {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        const players = await playersRes.json();
+
+        pSelect.innerHTML = '<option value="">Select a player</option>';
+        players.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.externalId;
+          opt.textContent = p.username + ' (Lv.' + p.level + ' ' + p.vipStatus + ')';
+          opt.dataset.username = p.username;
+          pSelect.appendChild(opt);
+        });
+      } catch (e) {
+        pSelect.innerHTML = '<option value="">Error loading players</option>';
+      }
     });
+
+    // Generate JWT for player (using backend's JWT secret — dev only!)
+    async function generatePlayerToken(externalId, username) {
+      // We'll call a dev endpoint or generate client-side
+      // For dev, use a simple approach: call the self-test endpoint or generate
+      // Actually, we need the backend to sign it. Let's add a dev-only endpoint.
+      // For now, use the test token approach:
+      const response = await fetch(API + '/api/self-test/player-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ externalId, username })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.token;
+      }
+      return null;
+    }
+
+    window.connectAsPlayer = async function() {
+      const tenantId = document.getElementById('tenant-select').value;
+      const pSelect = document.getElementById('player-select');
+      const externalId = pSelect.value;
+      const username = pSelect.selectedOptions[0]?.dataset?.username;
+
+      if (!tenantId || !externalId) {
+        document.getElementById('login-error').textContent = 'Select a tenant and player';
+        document.getElementById('login-error').style.display = 'block';
+        return;
+      }
+
+      const token = await generatePlayerToken(externalId, username);
+      if (!token) {
+        document.getElementById('login-error').textContent = 'Failed to generate token. Make sure the /api/self-test/player-token endpoint exists.';
+        document.getElementById('login-error').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('dev-login').style.display = 'none';
+      CasinoChat.init({
+        tenantId,
+        serverUrl: API,
+        containerId: 'chat',
+        mode: 'fullscreen',
+        defaultOpen: true,
+        playerToken: token,
+        theme: { primaryColor: '#6366F1' },
+      });
+    };
+
+    window.connectAsGuest = function() {
+      const tenantId = document.getElementById('tenant-select').value;
+      if (!tenantId) {
+        document.getElementById('login-error').textContent = 'Select a tenant first';
+        document.getElementById('login-error').style.display = 'block';
+        return;
+      }
+      document.getElementById('dev-login').style.display = 'none';
+      CasinoChat.init({
+        tenantId,
+        serverUrl: API,
+        containerId: 'chat',
+        mode: 'fullscreen',
+        defaultOpen: true,
+        theme: { primaryColor: '#6366F1' },
+      });
+    };
+
+    loadTenants();
   </script>
 </body>
 </html>

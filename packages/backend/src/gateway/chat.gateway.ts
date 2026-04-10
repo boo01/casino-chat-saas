@@ -83,37 +83,62 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             secret: this.configService.get<string>('jwt.secret'),
           });
 
-          // Load player from DB
-          const player = await this.playerService.getPlayerByExternalId(
-            tenantId,
-            payload.externalId || payload.playerId,
-          );
+          // Check if this is an admin token (has role + email, no externalId)
+          if (payload.role && payload.email && !payload.externalId) {
+            // Admin connecting to chat — create synthetic player data
+            const adminPlayer = {
+              id: payload.id,
+              username: payload.email.split('@')[0],
+              avatarUrl: null,
+              level: 99,
+              vipStatus: 'DIAMOND',
+              isPremium: false,
+              premiumStyle: null,
+              isModerator: true,
+              isStreamer: false,
+            };
 
-          if (player) {
-            // Check if player is banned
-            const isBanned = await this.moderationService.isPlayerBanned(tenantId, player.id);
-            if (isBanned) {
-              socket.emit('error', { code: 'BANNED', message: 'You are banned from chat' });
-              socket.disconnect();
-              return;
-            }
-
-            socket.data.player = player;
+            socket.data.player = adminPlayer;
             socket.data.isGuest = false;
+            socket.data.isAdmin = true;
 
-            // Join user-specific room
-            socket.join(`user:${player.id}`);
+            socket.join(`user:${payload.id}`);
             socket.join(`tenant:${tenantId}`);
 
-            // Update last seen
-            await this.playerService.updateLastSeen(tenantId, player.id);
-
-            this.logger.log(`Player ${player.username} connected: ${socket.id} (tenant: ${tenantId})`);
+            this.logger.log(`Admin ${payload.email} connected to chat: ${socket.id} (tenant: ${tenantId})`);
           } else {
-            // Token valid but player not found — treat as guest
-            socket.data.isGuest = true;
-            socket.join(`tenant:${tenantId}`);
-            this.logger.log(`Unknown player connected as guest: ${socket.id}`);
+            // Load player from DB
+            const player = await this.playerService.getPlayerByExternalId(
+              tenantId,
+              payload.externalId || payload.playerId,
+            );
+
+            if (player) {
+              // Check if player is banned
+              const isBanned = await this.moderationService.isPlayerBanned(tenantId, player.id);
+              if (isBanned) {
+                socket.emit('error', { code: 'BANNED', message: 'You are banned from chat' });
+                socket.disconnect();
+                return;
+              }
+
+              socket.data.player = player;
+              socket.data.isGuest = false;
+
+              // Join user-specific room
+              socket.join(`user:${player.id}`);
+              socket.join(`tenant:${tenantId}`);
+
+              // Update last seen
+              await this.playerService.updateLastSeen(tenantId, player.id);
+
+              this.logger.log(`Player ${player.username} connected: ${socket.id} (tenant: ${tenantId})`);
+            } else {
+              // Token valid but player not found — treat as guest
+              socket.data.isGuest = true;
+              socket.join(`tenant:${tenantId}`);
+              this.logger.log(`Unknown player connected as guest: ${socket.id}`);
+            }
           }
         } catch (err) {
           // Invalid token — connect as guest
@@ -156,8 +181,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const tenantId = socket.data.tenantId;
     const player = socket.data.player;
 
-    if (player) {
-      await this.playerService.updateLastSeen(tenantId, player.id);
+    if (player && !socket.data.isAdmin) {
+      try {
+        await this.playerService.updateLastSeen(tenantId, player.id);
+      } catch (err) {
+        this.logger.warn(`Failed to update lastSeen for ${player.id}: ${(err as Error).message}`);
+      }
 
       // Broadcast to tenant
       this.server.to(`tenant:${tenantId}`).emit('player:disconnected', {
@@ -259,37 +288,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Check mute
-      const isMuted = await this.moderationService.isPlayerMuted(tenantId, player.id);
-      if (isMuted) {
-        socket.emit('error', { code: 'MUTED', message: 'You are muted' });
-        return;
-      }
+      // Admins bypass moderation checks
+      if (!socket.data.isAdmin) {
+        // Check mute
+        const isMuted = await this.moderationService.isPlayerMuted(tenantId, player.id);
+        if (isMuted) {
+          socket.emit('error', { code: 'MUTED', message: 'You are muted' });
+          return;
+        }
 
-      // Check banned words
-      const contentCheck = await this.moderationService.checkContentForBannedWords(tenantId, text);
-      if (contentCheck.isBanned) {
-        socket.emit('error', { code: 'BANNED_CONTENT', message: 'Your message contains prohibited content' });
-        return;
-      }
+        // Check banned words
+        const contentCheck = await this.moderationService.checkContentForBannedWords(tenantId, text);
+        if (contentCheck.isBanned) {
+          socket.emit('error', { code: 'BANNED_CONTENT', message: 'Your message contains prohibited content' });
+          return;
+        }
 
-      // Check rate limit
-      const rateLimit = await this.chatService.getRateLimitStatus(tenantId, player.id);
-      if (rateLimit.isLimited) {
-        socket.emit('error', {
-          code: 'RATE_LIMITED',
-          message: `Rate limited. Please wait ${rateLimit.resetIn}s`,
-          resetIn: rateLimit.resetIn,
-        });
-        return;
+        // Check rate limit
+        const rateLimit = await this.chatService.getRateLimitStatus(tenantId, player.id);
+        if (rateLimit.isLimited) {
+          socket.emit('error', {
+            code: 'RATE_LIMITED',
+            message: `Rate limited. Please wait ${rateLimit.resetIn}s`,
+            resetIn: rateLimit.resetIn,
+          });
+          return;
+        }
       }
 
       const message = await this.chatService.sendMessage({
         tenantId,
         channelId,
-        playerId: player.id,
+        playerId: socket.data.isAdmin ? null : player.id,
         type: MessageType.TEXT,
-        source: MessageSource.PLAYER,
+        source: socket.data.isAdmin ? MessageSource.OPERATOR : MessageSource.PLAYER,
         content: { text: text.trim() },
         replyToId,
       });
@@ -396,8 +428,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handlePresenceUpdate(@ConnectedSocket() socket: Socket) {
     const { tenantId, player } = socket.data;
 
-    if (player) {
-      await this.playerService.updateLastSeen(tenantId, player.id);
+    if (player && !socket.data.isAdmin) {
+      try {
+        await this.playerService.updateLastSeen(tenantId, player.id);
+      } catch (err) {
+        this.logger.warn(`Failed to update presence for ${player.id}: ${(err as Error).message}`);
+      }
 
       this.server.to(`tenant:${tenantId}`).emit('player:presence', {
         playerId: player.id,

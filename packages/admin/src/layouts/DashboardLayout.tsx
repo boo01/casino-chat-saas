@@ -17,6 +17,7 @@ import {
   UserCog,
   Code2,
   Eye,
+  Radio,
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy, tenantOnly: true },
   { to: '/analytics', label: 'Analytics', icon: BarChart3, tenantOnly: true },
   { to: '/integration', label: 'Integration', icon: Code2, tenantOnly: true },
+  { to: '/live-chat', label: 'Live Chat', icon: Radio, tenantOnly: true },
   { to: '/chat-preview', label: 'Chat Preview', icon: Eye, tenantOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/super-admin/tenants', label: 'Tenants', icon: Building2, superAdminOnly: true },

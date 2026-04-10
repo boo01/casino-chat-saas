@@ -31,12 +31,16 @@ export class ChatController {
     @Body() body: { text: string; type?: string; source?: string },
     @CurrentUser() user: any,
   ) {
+    // Admin/operator messages don't have a player — use null playerId
+    const source = (body.source as MessageSource) || MessageSource.OPERATOR;
+    const isPlayerSource = source === MessageSource.PLAYER;
+
     return this.chatService.sendMessage({
       tenantId,
       channelId,
-      playerId: user?.id,
+      playerId: isPlayerSource ? user?.id : null,
       type: (body.type as MessageType) || MessageType.TEXT,
-      source: (body.source as MessageSource) || MessageSource.OPERATOR,
+      source,
       content: { text: body.text },
     });
   }

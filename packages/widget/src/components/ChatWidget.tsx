@@ -2,16 +2,15 @@ import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { ChatConfig, ChatMessage, Channel, Player } from '../types';
 import { ChatSocket } from '../api/socket';
-import { ChatHeader } from './ChatHeader';
-import { MessageList } from './MessageList';
-import { ChatInput } from './ChatInput';
+import { ChatPanel } from './ChatPanel';
 
 interface Props {
   config: ChatConfig;
 }
 
 export function ChatWidget({ config }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
+  const mode = config.mode || 'floating';
+  const [isOpen, setIsOpen] = useState(mode !== 'floating' || config.defaultOpen === true);
   const [isConnected, setIsConnected] = useState(false);
   const [isGuest, setIsGuest] = useState(true);
   const [player, setPlayer] = useState<Player | null>(null);
@@ -29,16 +28,31 @@ export function ChatWidget({ config }: Props) {
       setIsConnected(true);
       setIsGuest(data.isGuest);
       if (data.player) setPlayer(data.player);
+      if (data.channels) setChannels(data.channels);
     };
 
     socket.onChannelJoined = (data) => {
       setMessages(data.messages || []);
       setOnlineCount(data.onlineCount || 0);
       setCurrentChannel(data.channelId);
+      if (data.channel) {
+        setChannels((prev) => {
+          const exists = prev.some((ch) => ch.id === data.channel.id);
+          return exists ? prev : [...prev, data.channel];
+        });
+      }
     };
 
     socket.onMessage = (msg) => {
       setMessages((prev) => [...prev, msg]);
+    };
+
+    socket.onPlayerJoined = (data) => {
+      if (data.onlineCount != null) setOnlineCount(data.onlineCount);
+    };
+
+    socket.onPlayerLeft = (data) => {
+      if (data.onlineCount != null) setOnlineCount(data.onlineCount);
     };
 
     socket.onError = (err) => {
@@ -48,6 +62,11 @@ export function ChatWidget({ config }: Props) {
     socket.onDisconnect = () => {
       setIsConnected(false);
     };
+
+    // For sidebar/fullscreen, connect immediately
+    if (mode !== 'floating' || config.defaultOpen) {
+      socket.connect();
+    }
 
     return () => socket.disconnect();
   }, [config.tenantId, config.playerToken]);
@@ -81,6 +100,47 @@ export function ChatWidget({ config }: Props) {
   const height = config.theme?.height || 600;
   const primaryColor = config.theme?.primaryColor || '#6366F1';
 
+  // Sidebar mode: fill parent container
+  if (mode === 'sidebar') {
+    return (
+      <div style={{ width: '100%', height: '100%' }}>
+        <ChatPanel
+          config={config}
+          isConnected={isConnected}
+          isGuest={isGuest}
+          player={player}
+          messages={messages}
+          channels={channels}
+          currentChannel={currentChannel}
+          onlineCount={onlineCount}
+          onJoinChannel={handleJoinChannel}
+          onSendMessage={handleSend}
+        />
+      </div>
+    );
+  }
+
+  // Fullscreen mode: fill viewport
+  if (mode === 'fullscreen') {
+    return (
+      <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, zIndex: 999999 }}>
+        <ChatPanel
+          config={config}
+          isConnected={isConnected}
+          isGuest={isGuest}
+          player={player}
+          messages={messages}
+          channels={channels}
+          currentChannel={currentChannel}
+          onlineCount={onlineCount}
+          onJoinChannel={handleJoinChannel}
+          onSendMessage={handleSend}
+        />
+      </div>
+    );
+  }
+
+  // Floating mode: FAB + panel
   if (!isOpen) {
     return (
       <div
@@ -95,25 +155,45 @@ export function ChatWidget({ config }: Props) {
     );
   }
 
+  const floatingStyle: Record<string, string> = {
+    width: `${width}px`,
+    height: `${height}px`,
+  };
+
+  if (position === 'bottom-right') {
+    floatingStyle.bottom = '84px';
+    floatingStyle.right = '20px';
+  } else {
+    floatingStyle.bottom = '84px';
+    floatingStyle.left = '20px';
+  }
+
   return (
-    <div
-      class={`cc-widget cc-widget--${position}`}
-      style={{ width: `${width}px`, height: `${height}px` }}
-    >
-      <ChatHeader
-        isConnected={isConnected}
-        onlineCount={onlineCount}
-        channelName={currentChannel || 'Chat'}
-        primaryColor={primaryColor}
-        onClose={handleOpen}
-        onChannelSelect={handleJoinChannel}
-      />
-      <MessageList messages={messages} currentPlayer={player} />
-      <ChatInput
-        isGuest={isGuest}
-        onSend={handleSend}
-        primaryColor={primaryColor}
-      />
+    <div>
+      <div style={floatingStyle} class="cc-panel--floating">
+        <ChatPanel
+          config={config}
+          isConnected={isConnected}
+          isGuest={isGuest}
+          player={player}
+          messages={messages}
+          channels={channels}
+          currentChannel={currentChannel}
+          onlineCount={onlineCount}
+          onJoinChannel={handleJoinChannel}
+          onSendMessage={handleSend}
+          onClose={handleOpen}
+        />
+      </div>
+      <div
+        class={`cc-fab cc-fab--${position}`}
+        onClick={handleOpen}
+        style={{ backgroundColor: primaryColor }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </div>
     </div>
   );
 }

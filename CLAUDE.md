@@ -8,7 +8,6 @@ When the user describes a task, automatically determine which part of the codeba
 - **Backend agent** — NestJS code, API endpoints, services, guards, Prisma schema, database, Redis, WebSocket gateway, tests. Working dir: `packages/backend/`
 - **Admin agent** — React admin panel, pages, components, routing, Tailwind styles, Vite config. Working dir: `packages/admin/`
 - **Widget agent** — Preact chat widget, SDK, embeddable bundle, socket client. Working dir: `packages/widget/`
-- **Shared agent** — Shared types, constants, utils used across packages. Working dir: `packages/shared/`
 - **DevOps agent** — Docker, docker-compose, CI/CD, deployment, env config. Working dir: project root.
 
 **How to delegate:**
@@ -117,17 +116,13 @@ casino-chat-saas/
 │   ├── admin/                   # React admin panel
 │   │   ├── src/
 │   │   └── package.json
-│   └── shared/                  # Shared TypeScript types & utils
-│       ├── src/
-│       │   ├── types/           # Shared interfaces (Message, Player, Channel, etc.)
-│       │   ├── constants/       # Feature flags, tiers, event names
-│       │   └── utils/           # Shared helpers
-│       └── package.json
+│   └── casino-chat-simulator-main/  # ⚠️ NOT part of this project (see note below)
 ├── docker-compose.yml           # PostgreSQL + Redis + App
 ├── docker-compose.prod.yml      # Production overrides
+├── pnpm-workspace.yaml          # pnpm workspace config
+├── dev.sh                       # Dev environment manager script
 ├── .env.example
-├── package.json                 # Monorepo root
-└── turbo.json                   # Turborepo config (optional)
+└── package.json                 # Monorepo root
 ```
 
 ### Multi-Tenancy
@@ -203,11 +198,16 @@ casino-chat-saas/
 9. [x] Testing (48 unit tests)
 10. [x] DevOps & Production Readiness
 
-### Design Reference
-The prototype at `casino-chat-simulator-main/` defines the UI design system:
-- Dark theme: page=#080C14, chat=#0d121d, card=#111827, input=#1F2937
+### Design Reference — Casino Chat Simulator
+
+**`packages/casino-chat-simulator-main/` is NOT part of this project.** It is a standalone React prototype built by a coworker that demonstrates the target UI/UX. Do NOT modify it, do NOT add it to workspaces, do NOT import from it.
+
+**How to use it:** The widget (`packages/widget/`) should visually and functionally match 80-90% of the simulator. Use it as a design spec and feature reference:
+- 18 tiered features: text chat, channels, win cards, reactions, emoji/GIF, player profiles, levels/badges, rain events, promo cards, leaderboard, trivia, tipping, premium styles, streamer mode
+- Dark gaming theme: page=#080C14, chat=#0d121d, card=#111827, input=#1F2937
 - Tier colors: basic=#22C55E, social=#3B82F6, engage=#F59E0B, monetize=#EF4444
 - Font: system stack, 13px base
+- Key components to reference: `ChatMessage.tsx` (message styling), `WinCard.tsx`, `RainEvent.tsx`, `TriviaCard.tsx`, `PromoCard.tsx`, `ReactionBar.tsx`, `PlayerCard.tsx`, `TipModal.tsx`, `EmojiPicker.tsx`, `LeaderboardWidget.tsx`
 - Both widget AND admin panel use this same dark gaming aesthetic
 
 ## Key Design Decisions
@@ -233,30 +233,32 @@ The prototype at `casino-chat-simulator-main/` defines the UI design system:
 - **Error handling:** Global exception filter, standardized error response format
 - **Logging:** Pino logger (built into Fastify)
 
+## Package Manager: pnpm
+
+This project uses **pnpm** (not npm/yarn). Workspaces defined in `pnpm-workspace.yaml`.
+
 ## Commands
 
 ```bash
-# Development
-npm run dev              # Start all packages in dev mode
-npm run dev:backend      # Start backend only
-npm run dev:widget       # Start widget dev server
-npm run dev:admin        # Start admin panel dev server
+# Development (recommended — use dev.sh)
+./dev.sh start           # Start everything (Docker + Backend + Admin + Widget)
+./dev.sh stop            # Stop everything
+./dev.sh restart         # Restart all
+./dev.sh status          # Check what's running
+./dev.sh logs            # Tail all service logs
+./dev.sh seed            # Re-seed database
 
-# Database
-npm run db:migrate       # Run Prisma migrations
-npm run db:seed          # Seed development data
-npm run db:studio        # Open Prisma Studio
+./dev.sh backend         # Restart backend only
+./dev.sh admin           # Restart admin only
+./dev.sh widget          # Restart widget only
+./dev.sh db              # Restart Docker (PostgreSQL + Redis) only
 
-# Testing
-npm run test             # Run all tests
-npm run test:backend     # Run backend tests
-npm run test:e2e         # Run E2E tests
-npm run test:cov         # Run tests with coverage
-
-# Build
-npm run build            # Build all packages
-npm run build:backend    # Build backend
-npm run build:widget     # Build widget bundle
+# pnpm commands
+pnpm install             # Install all dependencies
+pnpm -r run build        # Build all packages
+pnpm -r run test         # Run all tests
+pnpm --filter casino-chat-saas-backend run prisma:seed    # Seed database
+pnpm --filter casino-chat-saas-backend run prisma:studio  # Open Prisma Studio
 
 # Docker
 docker-compose up -d     # Start dev environment (PostgreSQL + Redis)

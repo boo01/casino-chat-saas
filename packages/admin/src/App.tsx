@@ -17,6 +17,7 @@ import { TenantsPage } from './pages/super-admin/TenantsPage';
 import { AdminsPage } from './pages/super-admin/AdminsPage';
 import { IntegrationPage } from './pages/integration/IntegrationPage';
 import { ChatPreviewPage } from './pages/chat-preview/ChatPreviewPage';
+import { LiveChatPage } from './pages/live-chat/LiveChatPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="integration" element={<IntegrationPage />} />
           <Route path="chat-preview" element={<ChatPreviewPage />} />
+          <Route path="live-chat" element={<LiveChatPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="super-admin/tenants" element={<TenantsPage />} />
           <Route path="super-admin/admins" element={<AdminsPage />} />
