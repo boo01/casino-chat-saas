@@ -38,22 +38,19 @@
   </style>
 </head>
 <body>
+  <!-- Tenant IDs are from the seed. Re-run `npm run db:seed` if IDs don't match. -->
   <div id="dev-login" class="dev-login">
     <div class="dev-login__card">
       <h2>Casino Chat Dev</h2>
-      <p>Connect as a player to test the chat widget</p>
+      <p>Select a tenant and connect as guest to test the chat widget</p>
       <div id="login-error" class="error" style="display:none"></div>
       <label>Tenant</label>
       <select id="tenant-select">
-        <option value="">Loading tenants...</option>
+        <option value="">Select a tenant</option>
+        <option value="cmnq8cmdl0002axyekpy5k7kx">Lucky Star Casino (MONETIZE)</option>
+        <option value="cmnq8cmig003saxyebtynje4d">Bet Royal (BASIC)</option>
       </select>
-      <label>Player</label>
-      <select id="player-select">
-        <option value="">Select a tenant first</option>
-      </select>
-      <button id="btn-connect" onclick="connectAsPlayer()">Connect as Player</button>
-      <div class="divider">or</div>
-      <button class="guest" onclick="connectAsGuest()">Connect as Guest (read-only)</button>
+      <button class="guest" onclick="connectAsGuest()">Connect as Guest</button>
     </div>
   </div>
   <div id="chat"></div>
@@ -62,155 +59,6 @@
     import { CasinoChat } from './src/index.ts';
 
     const API = 'http://localhost:3000';
-
-    // Fetch tenants list (using super admin)
-    async function loadTenants() {
-      try {
-        const loginRes = await fetch(API + '/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'super@casinochat.com', password: 'SuperAdmin123!' })
-        });
-        const loginData = await loginRes.json();
-        if (!loginData.accessToken) throw new Error('Login failed');
-
-        const res = await fetch(API + '/api/super-admin/tenants', {
-          headers: { Authorization: 'Bearer ' + loginData.accessToken }
-        });
-        const tenants = await res.json();
-
-        const select = document.getElementById('tenant-select');
-        select.innerHTML = '<option value="">Select a tenant</option>';
-        tenants.forEach(t => {
-          const opt = document.createElement('option');
-          opt.value = t.id;
-          opt.textContent = t.name + ' (' + t.tier + ')';
-          opt.dataset.token = loginData.accessToken;
-          select.appendChild(opt);
-        });
-      } catch (e) {
-        document.getElementById('login-error').textContent = 'Failed to load tenants: ' + e.message;
-        document.getElementById('login-error').style.display = 'block';
-      }
-    }
-
-    // Fetch players for selected tenant
-    document.getElementById('tenant-select').addEventListener('change', async function() {
-      const tenantId = this.value;
-      const pSelect = document.getElementById('player-select');
-      if (!tenantId) {
-        pSelect.innerHTML = '<option value="">Select a tenant first</option>';
-        return;
-      }
-
-      try {
-        // Login as tenant admin to get players
-        const adminEmails = {
-          // Try common admin emails
-        };
-        // Use super admin token to get tenant details, then use tenant admin
-        const saToken = this.selectedOptions[0].dataset.token;
-
-        // Get players via tenant-scoped endpoint (need tenant admin token)
-        // For dev, let's try to find the owner admin for this tenant
-        const tenantRes = await fetch(API + '/api/tenants/' + tenantId, {
-          headers: { Authorization: 'Bearer ' + saToken }
-        });
-
-        // Get players - use super admin to list (we'll need to get a tenant admin token)
-        // Simpler: use owner login
-        const owners = [
-          { email: 'owner@luckystar.test', password: 'Owner123!' },
-          { email: 'owner@betroyal.test', password: 'Owner123!' },
-        ];
-
-        let token = null;
-        for (const o of owners) {
-          try {
-            const r = await fetch(API + '/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(o)
-            });
-            const d = await r.json();
-            if (d.accessToken && d.admin?.tenantId === tenantId) {
-              token = d.accessToken;
-              break;
-            }
-          } catch {}
-        }
-
-        if (!token) {
-          pSelect.innerHTML = '<option value="">No admin found for this tenant</option>';
-          return;
-        }
-
-        const playersRes = await fetch(API + '/api/players', {
-          headers: { Authorization: 'Bearer ' + token }
-        });
-        const players = await playersRes.json();
-
-        pSelect.innerHTML = '<option value="">Select a player</option>';
-        players.forEach(p => {
-          const opt = document.createElement('option');
-          opt.value = p.externalId;
-          opt.textContent = p.username + ' (Lv.' + p.level + ' ' + p.vipStatus + ')';
-          opt.dataset.username = p.username;
-          pSelect.appendChild(opt);
-        });
-      } catch (e) {
-        pSelect.innerHTML = '<option value="">Error loading players</option>';
-      }
-    });
-
-    // Generate JWT for player (using backend's JWT secret — dev only!)
-    async function generatePlayerToken(externalId, username) {
-      // We'll call a dev endpoint or generate client-side
-      // For dev, use a simple approach: call the self-test endpoint or generate
-      // Actually, we need the backend to sign it. Let's add a dev-only endpoint.
-      // For now, use the test token approach:
-      const response = await fetch(API + '/api/self-test/player-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ externalId, username })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return data.token;
-      }
-      return null;
-    }
-
-    window.connectAsPlayer = async function() {
-      const tenantId = document.getElementById('tenant-select').value;
-      const pSelect = document.getElementById('player-select');
-      const externalId = pSelect.value;
-      const username = pSelect.selectedOptions[0]?.dataset?.username;
-
-      if (!tenantId || !externalId) {
-        document.getElementById('login-error').textContent = 'Select a tenant and player';
-        document.getElementById('login-error').style.display = 'block';
-        return;
-      }
-
-      const token = await generatePlayerToken(externalId, username);
-      if (!token) {
-        document.getElementById('login-error').textContent = 'Failed to generate token. Make sure the /api/self-test/player-token endpoint exists.';
-        document.getElementById('login-error').style.display = 'block';
-        return;
-      }
-
-      document.getElementById('dev-login').style.display = 'none';
-      CasinoChat.init({
-        tenantId,
-        serverUrl: API,
-        containerId: 'chat',
-        mode: 'fullscreen',
-        defaultOpen: true,
-        playerToken: token,
-        theme: { primaryColor: '#6366F1' },
-      });
-    };
 
     window.connectAsGuest = function() {
       const tenantId = document.getElementById('tenant-select').value;
@@ -229,8 +77,6 @@
         theme: { primaryColor: '#6366F1' },
       });
     };
-
-    loadTenants();
   </script>
 </body>
 </html>

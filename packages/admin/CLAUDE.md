@@ -23,20 +23,23 @@ You are working on the **React admin panel** (`packages/admin/`).
 - Font: system stack, 13px base
 - Same dark aesthetic as the widget
 
-## Pages (Current)
-- LoginPage, DashboardPage, ChannelListPage, PlayerListPage, ModerationPage, SettingsPage
-
-## Pages (Planned — from IMPLEMENTATION_PLAN.md)
-- channels/: ChannelListPage, ChannelEditPage
-- players/: PlayerListPage, PlayerDetailPage
-- moderation/: ModerationPage (live monitor), BannedWordsPage, ReportsPage
-- promos/: PromoListPage, PromoEditPage
-- trivia/: TriviaListPage, TriviaEditPage
-- rain/: RainPage
-- leaderboard/: LeaderboardPage
-- analytics/: AnalyticsPage (charts + metrics)
-- settings/: GeneralSettings, FeatureSettings, ApiSettings, AdminSettings
-- super-admin/: TenantsPage, TenantDetailPage, PlatformSettingsPage
+## Pages (16 total — all implemented)
+- auth/LoginPage — unified login (tenant admin + super admin)
+- dashboard/DashboardPage — stats cards (tenant or super admin view)
+- channels/ChannelListPage — full CRUD with modals
+- players/PlayerListPage — list, search, expandable detail, block with duration
+- moderation/ModerationPage — banned words CRUD + moderation logs
+- promos/PromosPage — CRUD + "Send to Chat" (picks channel, sends as system message)
+- trivia/TriviaPage — CRUD + "Start in Chat" (picks channel, sends formatted question)
+- rain/RainPage — trigger rain (channel dropdown) + event history
+- leaderboard/LeaderboardPage — period tabs + "Recalculate" button
+- analytics/AnalyticsPage — overview stats, message bar chart, VIP distribution
+- integration/IntegrationPage — SDK embed code, theme config, auth guide
+- live-chat/LiveChatPage — real-time chat: send messages as admin, emoji picker, block/delete hover actions, REST polling + WebSocket broadcast
+- chat-preview/ChatPreviewPage — visual SDK preview in iframe (color/position config only, NO messaging)
+- settings/SettingsPage — tenant config, API keys (visible, copyable), regenerate
+- super-admin/TenantsPage — tenant list with expandable stats
+- super-admin/AdminsPage — super admin CRUD
 
 ## API Routes (backend)
 All tenant-scoped endpoints: `/api/tenants/:tenantId/<resource>`

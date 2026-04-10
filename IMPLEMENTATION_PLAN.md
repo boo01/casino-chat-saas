@@ -196,8 +196,8 @@ The seed must create:
   - mod@luckystar.test / Mod123! (MODERATOR)
   - support@luckystar.test / Support123! (ADMIN, limited permissions)
 - 5 Channels: English 🇬🇧, Russian 🇷🇺, Turkish 🇹🇷, VIP Lounge 👑 (min_level: 10), High Rollers 💰 (wager-gated)
-- 20 Players with varied levels, VIP statuses, premium styles:
-  - CryptoKing (Lv 42, DIAMOND, premium gradient)
+- 20 Players with varied levels, VIP statuses:
+  - CryptoKing (Lv 42, DIAMOND)
   - SlotQueen (Lv 28, GOLD)
   - PokerFace (Lv 15, SILVER)
   - LuckyDice (Lv 8, BRONZE)
@@ -550,7 +550,7 @@ The widget automatically enables/disables UI based on tenant tier config receive
 - BASIC: Text chat, channels, moderation indicators
 - SOCIAL: + Win cards, reactions, GIFs, emojis, player profiles
 - ENGAGE: + Levels/badges, rain, promos, leaderboard, trivia
-- MONETIZE: + Tipping, premium styles, streamer mode
+- MONETIZE: + Tipping
 
 ### 6.5 Design Implementation
 

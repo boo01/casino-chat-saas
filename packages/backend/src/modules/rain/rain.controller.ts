@@ -5,6 +5,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { PermissionGuard } from 'src/common/guards/permission.guard';
 import { RequirePermission } from 'src/common/decorators/require-permission.decorator';
 import { FeatureGateGuard, RequireFeature, FeatureKey } from 'src/common/guards/feature-gate.guard';
+import { CurrentUser } from 'src/common/decorators/current-player.decorator';
 import { TenantPermission } from '@prisma/client';
 
 @ApiTags('Rain')
@@ -18,8 +19,16 @@ export class RainController {
   @Post()
   @RequirePermission(TenantPermission.MANAGE_RAIN)
   @ApiOperation({ summary: 'Trigger rain event' })
-  async trigger(@Param('tenantId') tenantId: string, @Body() body: any) {
-    return this.rainService.triggerRain(tenantId, body);
+  async trigger(
+    @Param('tenantId') tenantId: string,
+    @Body() body: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.rainService.triggerRain(tenantId, {
+      ...body,
+      initiatedById: user.id,
+      perPlayerAmount: body.perPlayerAmount || 0,
+    });
   }
 
   @Get()

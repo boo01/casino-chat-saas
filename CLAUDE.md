@@ -46,7 +46,7 @@ This prevents agents from building on stale assumptions. Examples:
 
 ## Project Overview
 
-Casino Chat SaaS (CasinoChat Pro) is a real-time embeddable chat widget platform for online casino operators. Casino operators embed the widget on their sites via JavaScript SDK or iframe. The platform provides 18 features across 4 pricing tiers (Basic, Social, Engage, Monetize).
+Casino Chat SaaS (CasinoChat Pro) is a real-time embeddable chat widget platform for online casino operators. Casino operators embed the widget on their sites via JavaScript SDK or iframe. The platform provides 16 features across 4 pricing tiers (Basic, Social, Engage, Monetize).
 
 **Business Model:** SaaS sold to casino operators on tiered subscription.
 **Target:** B2B — licensed online casino and iGaming operators.
@@ -100,8 +100,6 @@ casino-chat-saas/
 │   │   │   │   ├── promo/       # Promotional cards
 │   │   │   │   ├── leaderboard/ # Top wagerers widget
 │   │   │   │   ├── tipping/     # P2P tipping ledger
-│   │   │   │   ├── premium/     # Paid chat privileges
-│   │   │   │   ├── streamer/    # Streamer mode
 │   │   │   │   ├── analytics/   # Engagement metrics, dashboards
 │   │   │   │   └── admin/       # Platform admin (super-admin)
 │   │   │   ├── gateway/         # WebSocket gateway
@@ -203,7 +201,7 @@ casino-chat-saas/
 **`packages/casino-chat-simulator-main/` is NOT part of this project.** It is a standalone React prototype built by a coworker that demonstrates the target UI/UX. Do NOT modify it, do NOT add it to workspaces, do NOT import from it.
 
 **How to use it:** The widget (`packages/widget/`) should visually and functionally match 80-90% of the simulator. Use it as a design spec and feature reference:
-- 18 tiered features: text chat, channels, win cards, reactions, emoji/GIF, player profiles, levels/badges, rain events, promo cards, leaderboard, trivia, tipping, premium styles, streamer mode
+- 16 tiered features: text chat, channels, win cards, reactions, emoji/GIF, player profiles, levels/badges, rain events, promo cards, leaderboard, trivia, tipping
 - Dark gaming theme: page=#080C14, chat=#0d121d, card=#111827, input=#1F2937
 - Tier colors: basic=#22C55E, social=#3B82F6, engage=#F59E0B, monetize=#EF4444
 - Font: system stack, 13px base

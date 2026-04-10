@@ -50,13 +50,20 @@ All tenant-scoped endpoints follow: `/api/tenants/:tenantId/<resource>`
 Super admin endpoints: `/api/super-admin/...` (tenants CRUD, dashboard, auth)
 Auth: `/api/auth/login` (unified — handles both TenantAdmin and SuperAdmin)
 Webhooks: `/api/webhooks/incoming` (casino→chat, HMAC-signed)
+Dev: `/api/self-test/player-token` (POST, dev-only — generates player JWT for testing)
+
+## REST → WebSocket Bridge
+Messages sent via REST API (`POST /api/tenants/:tid/channels/:cid/messages`) are automatically broadcast to WebSocket clients via `chatGateway.broadcastMessage()`. This means admin messages from Live Chat appear instantly in the widget.
+
+## Gateway Admin Auth
+The WebSocket gateway accepts admin JWTs (tokens with `role` + `email` fields, no `externalId`). Admins connect as level-99 moderators, bypass mute/ban/rate-limit checks, and their messages use `source: OPERATOR` with `playerId: null`.
 
 ## Feature Tier Gating
 Tenant tier controls which features are available:
 - BASIC: Text chat, channels, moderation
 - SOCIAL: + Win cards, reactions, GIFs, emojis, player profiles
 - ENGAGE: + Levels/badges, rain, promos, leaderboard, trivia
-- MONETIZE: + Tipping, premium styles, streamer mode
+- MONETIZE: + Tipping
 Use `@RequireFeature(FeatureKey.X)` + `FeatureGateGuard` to gate endpoints by tier.
 
 ## WebSocket Events & Payloads

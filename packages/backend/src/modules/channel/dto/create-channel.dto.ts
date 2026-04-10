@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateChannelDto {
@@ -25,4 +25,9 @@ export class CreateChannelDto {
   @IsOptional()
   @IsNumber()
   sortOrder?: number;
+
+  @ApiProperty({ example: true, description: 'Whether the channel is active' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

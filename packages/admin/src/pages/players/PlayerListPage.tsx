@@ -23,15 +23,18 @@ type VipStatus = 'NONE' | 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND';
 interface Player {
   id: string;
   tenantId: string;
-  externalPlayerId: string;
+  externalId: string;
   username: string;
   avatarUrl: string | null;
   level: number;
-  xp: number;
   vipStatus: VipStatus;
-  isBlocked: boolean;
   isPremium: boolean;
+  premiumStyle: string | null;
   isModerator: boolean;
+  isStreamer: boolean;
+  totalWagered: string;
+  favoriteGame: string | null;
+  winCount: number;
   lastSeenAt: string | null;
   createdAt: string;
 }
@@ -117,15 +120,35 @@ function PlayerAvatar({ player }: { player: Player }) {
 // Block Modal
 // ---------------------------------------------------------------------------
 
+const BLOCK_DURATIONS = [
+  { label: '1 hour', hours: 1 },
+  { label: '6 hours', hours: 6 },
+  { label: '24 hours', hours: 24 },
+  { label: '7 days', hours: 168 },
+  { label: '30 days', hours: 720 },
+  { label: 'Permanent', hours: 0 },
+] as const;
+
 interface BlockModalProps {
   player: Player;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, isPermanent: boolean, blockedUntil?: string) => void;
   loading: boolean;
 }
 
 function BlockModal({ player, onClose, onConfirm, loading }: BlockModalProps) {
   const [reason, setReason] = useState('');
+  const [durationIndex, setDurationIndex] = useState(5); // default: Permanent
+
+  const handleConfirm = () => {
+    const dur = BLOCK_DURATIONS[durationIndex];
+    if (dur.hours === 0) {
+      onConfirm(reason, true);
+    } else {
+      const until = new Date(Date.now() + dur.hours * 3600_000).toISOString();
+      onConfirm(reason, false, until);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -140,6 +163,16 @@ function BlockModal({ player, onClose, onConfirm, loading }: BlockModalProps) {
           Block <span className="font-semibold text-text-primary">{player.username}</span> from chatting?
           They will be unable to send messages.
         </p>
+        <label className="block text-text-muted text-xs mb-1 uppercase tracking-wider">Block Duration</label>
+        <select
+          value={durationIndex}
+          onChange={(e) => setDurationIndex(Number(e.target.value))}
+          className="w-full px-3 py-2 bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 mb-4"
+        >
+          {BLOCK_DURATIONS.map((d, i) => (
+            <option key={i} value={i}>{d.label}</option>
+          ))}
+        </select>
         <label className="block text-text-muted text-xs mb-1 uppercase tracking-wider">Reason</label>
         <input
           type="text"
@@ -158,7 +191,7 @@ function BlockModal({ player, onClose, onConfirm, loading }: BlockModalProps) {
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(reason)}
+            onClick={handleConfirm}
             disabled={loading || !reason.trim()}
             className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
           >
@@ -178,7 +211,7 @@ function BlockModal({ player, onClose, onConfirm, loading }: BlockModalProps) {
 function PlayerDetail({ player }: { player: Player }) {
   return (
     <tr>
-      <td colSpan={6} className="px-4 pb-4">
+      <td colSpan={7} className="px-4 pb-4">
         <div className="bg-page border border-border rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Player ID</span>
@@ -186,25 +219,23 @@ function PlayerDetail({ player }: { player: Player }) {
           </div>
           <div>
             <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">External ID</span>
-            <span className="text-text-primary font-mono text-xs break-all">{player.externalPlayerId}</span>
+            <span className="text-text-primary font-mono text-xs break-all">{player.externalId}</span>
           </div>
           <div>
             <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Level</span>
             <span className="text-text-primary">{player.level}</span>
           </div>
           <div>
-            <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">XP</span>
-            <span className="text-text-primary">{player.xp.toLocaleString()}</span>
+            <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Total Wagered</span>
+            <span className="text-text-primary">{Number(player.totalWagered || 0).toLocaleString()}</span>
           </div>
           <div>
             <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">VIP Status</span>
             <VipBadge status={player.vipStatus} />
           </div>
           <div>
-            <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Blocked</span>
-            <span className={player.isBlocked ? 'text-red-400' : 'text-green-400'}>
-              {player.isBlocked ? 'Yes' : 'No'}
-            </span>
+            <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Win Count</span>
+            <span className="text-text-primary">{(player.winCount || 0).toLocaleString()}</span>
           </div>
           <div>
             <span className="text-text-muted text-xs uppercase tracking-wider block mb-1">Last Seen</span>
@@ -267,21 +298,22 @@ export function PlayerListPage() {
     return players.filter(
       (p) =>
         p.username.toLowerCase().includes(q) ||
-        p.externalPlayerId.toLowerCase().includes(q),
+        p.externalId.toLowerCase().includes(q),
     );
   }, [players, searchQuery]);
 
   // ---- Actions ----
 
   const handleBlock = useCallback(
-    async (reason: string) => {
+    async (reason: string, isPermanent: boolean, blockedUntil?: string) => {
       if (!blockTarget) return;
       setActionLoading(true);
       try {
         await api.post(`/players/${blockTarget.id}/block`, {
           playerId: blockTarget.id,
           reason,
-          isPermanent: true,
+          isPermanent,
+          ...(blockedUntil ? { blockedUntil } : {}),
         });
         setPlayers((prev) =>
           prev.map((p) => (p.id === blockTarget.id ? { ...p, isBlocked: true } : p)),
@@ -315,7 +347,6 @@ export function PlayerListPage() {
   // ---- Stats ----
 
   const totalCount = players.length;
-  const blockedCount = players.filter((p) => p.isBlocked).length;
   const premiumCount = players.filter((p) => p.isPremium).length;
 
   // ---- Render ----
@@ -350,12 +381,12 @@ export function PlayerListPage() {
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-          <div className="p-2 bg-red-500/15 rounded-lg">
-            <ShieldBan size={18} className="text-red-400" />
+          <div className="p-2 bg-green-500/15 rounded-lg">
+            <ShieldBan size={18} className="text-green-400" />
           </div>
           <div>
-            <p className="text-text-muted text-xs uppercase tracking-wider">Blocked</p>
-            <p className="text-text-primary text-lg font-bold">{blockedCount}</p>
+            <p className="text-text-muted text-xs uppercase tracking-wider">Moderators</p>
+            <p className="text-text-primary text-lg font-bold">{players.filter((p) => p.isModerator).length}</p>
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
@@ -471,7 +502,7 @@ export function PlayerListPage() {
                             <span className="text-text-primary font-medium text-sm block leading-tight">
                               {player.username}
                             </span>
-                            <span className="text-text-muted text-xs">{player.externalPlayerId}</span>
+                            <span className="text-text-muted text-xs">{player.externalId}</span>
                           </div>
                         </div>
                       </td>
@@ -487,11 +518,6 @@ export function PlayerListPage() {
                       {/* Flags */}
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1">
-                          {player.isBlocked && (
-                            <span className="bg-red-900/30 text-red-400 text-xs px-2 py-0.5 rounded border border-red-500/20">
-                              Blocked
-                            </span>
-                          )}
                           {player.isPremium && (
                             <span className="bg-purple-900/30 text-purple-400 text-xs px-2 py-0.5 rounded border border-purple-500/20">
                               Premium
@@ -512,31 +538,17 @@ export function PlayerListPage() {
 
                       {/* Actions */}
                       <td className="p-4 text-right">
-                        {player.isBlocked ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnblock(player);
-                            }}
-                            disabled={actionLoading}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600/15 text-green-400 border border-green-500/20 rounded-lg hover:bg-green-600/25 transition-colors disabled:opacity-50"
-                          >
-                            <ShieldCheck size={13} />
-                            Unblock
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setBlockTarget(player);
-                            }}
-                            disabled={actionLoading}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-600/15 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-600/25 transition-colors disabled:opacity-50"
-                          >
-                            <ShieldBan size={13} />
-                            Block
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBlockTarget(player);
+                          }}
+                          disabled={actionLoading}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-600/15 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-600/25 transition-colors disabled:opacity-50"
+                        >
+                          <ShieldBan size={13} />
+                          Block
+                        </button>
                       </td>
                     </tr>
 

@@ -28,11 +28,24 @@ export function ChatWidget({ config }: Props) {
       setIsConnected(true);
       setIsGuest(data.isGuest);
       if (data.player) setPlayer(data.player);
-      if (data.channels) setChannels(data.channels);
+      if (data.channels) {
+        setChannels(data.channels);
+        // Auto-join first channel (or defaultChannel from config)
+        const targetChannel = config.defaultChannel
+          ? data.channels.find((ch: any) => ch.id === config.defaultChannel || ch.name === config.defaultChannel)
+          : data.channels[0];
+        if (targetChannel) {
+          socket.joinChannel(targetChannel.id);
+        }
+      }
     };
 
     socket.onChannelJoined = (data) => {
-      setMessages(data.messages || []);
+      // Sort oldest first (Redis cache may return inconsistent order)
+      const msgs = [...(data.messages || [])].sort(
+        (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+      setMessages(msgs);
       setOnlineCount(data.onlineCount || 0);
       setCurrentChannel(data.channelId);
       if (data.channel) {

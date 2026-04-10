@@ -51,6 +51,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private configService: ConfigService,
   ) {}
 
+  /** Broadcast a message to all clients in a channel (used by REST API) */
+  broadcastMessage(channelId: string, message: any) {
+    this.server.to(`channel:${channelId}`).emit('message:received', message);
+  }
+
   async afterInit() {
     try {
       const pubClient = await this.redisService.getPubClient();
@@ -153,10 +158,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.logger.log(`Guest connected: ${socket.id} (tenant: ${tenantId})`);
       }
 
-      // Send connection confirmation
+      // Fetch tenant channels
+      const channels = await this.channelService.listChannels(tenantId);
+
+      // Send connection confirmation with channels
       socket.emit('connection:established', {
         socketId: socket.id,
         isGuest: socket.data.isGuest,
+        channels,
         player: socket.data.player
           ? {
               id: socket.data.player.id,

@@ -1,7 +1,27 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../store/auth';
-import { Loader2, AlertCircle, Send, Hash, Users, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, Send, Hash, Users, RefreshCw, Smile, Trash2, Ban, X } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const EMOJI_LIST = [
+  '😀','😂','🤣','😍','🥳','🎉','🎊','🍀','🔥','💰',
+  '💎','🏆','👑','⭐','🎰','🎲','🃏','💯','👍','👎',
+  '❤️','😎','🤑','💪','🙏','✅','❌','⚡','🌟','🎯',
+  '😢','😡','🤔','🤯','🥶','🫡','🤝','👀','🎵','💀',
+];
+
+const BLOCK_DURATIONS = [
+  { label: '1 hour', minutes: 60 },
+  { label: '6 hours', minutes: 360 },
+  { label: '24 hours', minutes: 1440 },
+  { label: '7 days', minutes: 10080 },
+  { label: '30 days', minutes: 43200 },
+  { label: 'Permanent', minutes: undefined },
+];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,9 +141,87 @@ function ChannelSidebar({
   );
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function BlockPlayerModal({
+  playerId,
+  username,
+  onClose,
+  onConfirm,
+}: {
+  playerId: string;
+  username: string;
+  onClose: () => void;
+  onConfirm: (playerId: string, reason: string, durationMinutes?: number) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [durationIdx, setDurationIdx] = useState(2); // default 24h
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      ref={backdropRef}
+      onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+    >
+      <div className="bg-card border border-border rounded-xl shadow-2xl w-[380px] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-text-primary">Block Player</h3>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-xs text-text-secondary mb-4">
+          Block <span className="text-red-400 font-semibold">{username}</span> from chatting.
+        </p>
+        <label className="block text-xs text-text-muted mb-1">Reason</label>
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. Spam, toxic behavior..."
+          className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-3"
+          autoFocus
+        />
+        <label className="block text-xs text-text-muted mb-1">Duration</label>
+        <select
+          value={durationIdx}
+          onChange={(e) => setDurationIdx(Number(e.target.value))}
+          className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
+        >
+          {BLOCK_DURATIONS.map((d, i) => (
+            <option key={i} value={i}>{d.label}</option>
+          ))}
+        </select>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs text-text-muted hover:text-text-primary rounded-lg hover:bg-hover transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(playerId, reason || 'Blocked by admin', BLOCK_DURATIONS[durationIdx].minutes)}
+            className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
+          >
+            Block Player
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  msg,
+  onDelete,
+  onBlock,
+}: {
+  msg: ChatMessage;
+  onDelete?: (msg: ChatMessage) => void;
+  onBlock?: (msg: ChatMessage) => void;
+}) {
   const isSystem = msg.type === 'SYSTEM' || msg.source === 'SYSTEM';
   const isOperator = msg.source === 'OPERATOR';
+  const isPlayer = msg.source === 'PLAYER';
   const username = msg.player?.username ?? (isOperator ? 'Admin' : 'System');
 
   if (isSystem) {
@@ -139,7 +237,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   const color = colorFromName(username);
 
   return (
-    <div className="flex items-start gap-2.5 px-4 py-1.5 hover:bg-white/[0.02] transition-colors group">
+    <div className="flex items-start gap-2.5 px-4 py-1.5 hover:bg-white/[0.02] transition-colors group relative">
       {/* Avatar */}
       {msg.player?.avatarUrl ? (
         <img
@@ -178,6 +276,70 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           {msg.content.text}
         </p>
       </div>
+
+      {/* Hover actions — only for player messages */}
+      {isPlayer && (onDelete || onBlock) && (
+        <div className="absolute right-3 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+          {onDelete && (
+            <button
+              onClick={() => onDelete(msg)}
+              className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
+              title="Delete message"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+          {onBlock && msg.playerId && (
+            <button
+              onClick={() => onBlock(msg)}
+              className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
+              title="Block player"
+            >
+              <Ban size={13} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmojiPicker({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={pickerRef}
+      className="absolute bottom-full mb-2 left-0 bg-card border border-border rounded-lg shadow-xl p-2 z-50 w-[280px]"
+    >
+      <div className="grid grid-cols-8 gap-0.5">
+        {EMOJI_LIST.map((emoji) => (
+          <button
+            key={emoji}
+            onClick={() => onSelect(emoji)}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-hover text-lg transition-colors"
+            title={emoji}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -192,6 +354,7 @@ function MessageInput({
   adminName: string;
 }) {
   const [text, setText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSend = () => {
@@ -199,6 +362,7 @@ function MessageInput({
     if (!trimmed) return;
     onSend(trimmed);
     setText('');
+    setShowEmoji(false);
     inputRef.current?.focus();
   };
 
@@ -209,9 +373,43 @@ function MessageInput({
     }
   };
 
+  const handleEmojiSelect = (emoji: string) => {
+    const input = inputRef.current;
+    if (input) {
+      const start = input.selectionStart ?? text.length;
+      const end = input.selectionEnd ?? text.length;
+      const newText = text.slice(0, start) + emoji + text.slice(end);
+      setText(newText);
+      // Set cursor position after the emoji on next tick
+      requestAnimationFrame(() => {
+        const pos = start + emoji.length;
+        input.setSelectionRange(pos, pos);
+        input.focus();
+      });
+    } else {
+      setText((prev) => prev + emoji);
+    }
+  };
+
   return (
     <div className="border-t border-border bg-card px-4 py-3">
       <div className="flex items-center gap-2">
+        <div className="relative">
+          <button
+            onClick={() => setShowEmoji((v) => !v)}
+            disabled={disabled}
+            className="text-text-muted hover:text-text-primary disabled:opacity-50 p-2 rounded-lg hover:bg-hover transition-colors"
+            title="Emoji picker"
+          >
+            <Smile size={18} />
+          </button>
+          {showEmoji && (
+            <EmojiPicker
+              onSelect={handleEmojiSelect}
+              onClose={() => setShowEmoji(false)}
+            />
+          )}
+        </div>
         <input
           ref={inputRef}
           type="text"
@@ -262,6 +460,19 @@ export function LiveChatPage() {
 
   // Sending
   const [isSending, setIsSending] = useState(false);
+
+  // Block modal
+  const [blockTarget, setBlockTarget] = useState<{ playerId: string; username: string } | null>(null);
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
   // Auto-scroll ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -391,6 +602,45 @@ export function LiveChatPage() {
   );
 
   // -----------------------------------------------------------------------
+  // Delete message
+  // -----------------------------------------------------------------------
+  const handleDeleteMessage = useCallback(
+    async (msg: ChatMessage) => {
+      if (!tenantId) return;
+      try {
+        await api.delete(`/tenants/${tenantId}/channels/${msg.channelId}/messages/${msg.id}`);
+        setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+        showToast('Message deleted');
+      } catch (err: any) {
+        const errMsg = err.response?.data?.message || err.message || 'Failed to delete message';
+        showToast(`Error: ${errMsg}`);
+      }
+    },
+    [tenantId, showToast],
+  );
+
+  // -----------------------------------------------------------------------
+  // Block player
+  // -----------------------------------------------------------------------
+  const handleBlockPlayer = useCallback(
+    async (playerId: string, reason: string, durationMinutes?: number) => {
+      try {
+        await api.post(`/moderation/actions/${playerId}`, {
+          action: 'BAN',
+          reason,
+          ...(durationMinutes != null ? { durationMinutes } : {}),
+        });
+        setBlockTarget(null);
+        showToast('Player blocked successfully');
+      } catch (err: any) {
+        const errMsg = err.response?.data?.message || err.message || 'Failed to block player';
+        showToast(`Error: ${errMsg}`);
+      }
+    },
+    [showToast],
+  );
+
+  // -----------------------------------------------------------------------
   // Active channel object
   // -----------------------------------------------------------------------
   const activeChannel = channels.find((ch) => ch.id === activeChannelId) ?? null;
@@ -510,7 +760,16 @@ export function LiveChatPage() {
             ) : (
               <div className="py-2">
                 {messages.map((msg) => (
-                  <MessageBubble key={msg.id} msg={msg} />
+                  <MessageBubble
+                    key={msg.id}
+                    msg={msg}
+                    onDelete={handleDeleteMessage}
+                    onBlock={(m) => {
+                      if (m.playerId && m.player?.username) {
+                        setBlockTarget({ playerId: m.playerId, username: m.player.username });
+                      }
+                    }}
+                  />
                 ))}
                 <div ref={messagesEndRef} />
               </div>
@@ -525,6 +784,23 @@ export function LiveChatPage() {
           />
         </div>
       </div>
+
+      {/* Block player modal */}
+      {blockTarget && (
+        <BlockPlayerModal
+          playerId={blockTarget.playerId}
+          username={blockTarget.username}
+          onClose={() => setBlockTarget(null)}
+          onConfirm={handleBlockPlayer}
+        />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-card border border-border rounded-lg shadow-xl px-4 py-2.5 z-50 text-sm text-text-primary animate-fade-in">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

@@ -10,9 +10,18 @@ You are working on the **Preact embeddable chat widget** (`packages/widget/`).
 
 ## Key Patterns
 - Entry point: `src/index.ts` exports `CasinoChat.init(config)` for embedding
-- Socket wrapper: `src/socket.ts` handles connection, auth, reconnection
-- Components: ChatWidget, ChatHeader, MessageList, ChatMessage, ChatInput
-- Styles: `src/styles/widget.css` (~4.5KB)
+- Socket wrapper: `src/api/socket.ts` handles connection, auth, reconnection
+- Components: ChatWidget (mode switcher), ChatPanel (layout), ChatHeader (channel selector), MessageList (multi-type), ChatMessage (avatars, VIP, badges), ChatInput (emoji picker), WinCard, RainEvent, TriviaCard, PromoCard, EmojiPicker, PlayerCard
+- Styles: `src/styles/widget.css` (~500 lines, BetFury-style dark theme)
+- Types: `src/types/index.ts` — ChatConfig, Player, ChatMessage (7 types), Channel, TenantFeatures
+- Bundle: ~23KB gzipped JS + ~4KB gzipped CSS
+
+## Widget Modes
+- `floating` — bubble + popup (for small embeds on casino pages)
+- `sidebar` — fills parent container height (for right-side panel like BetFury)
+- `fullscreen` — fills viewport (for standalone chat page like stake.com/chat)
+- Set via `config.mode`, default is `floating`
+- `config.defaultOpen: true` opens immediately + auto-connects
 - Target bundle size: ~21KB gzipped
 
 ## Embedding
@@ -32,7 +41,7 @@ You are working on the **Preact embeddable chat widget** (`packages/widget/`).
 - BASIC: Text chat, channels, moderation indicators
 - SOCIAL: + Win cards, reactions, GIFs, emojis, player profiles
 - ENGAGE: + Levels/badges, rain, promos, leaderboard, trivia
-- MONETIZE: + Tipping, premium styles, streamer mode
+- MONETIZE: + Tipping
 
 ## WebSocket Events (client→server)
 - `chat:message` → `{ channelId, text, replyTo? }`

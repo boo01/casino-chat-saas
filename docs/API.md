@@ -179,7 +179,7 @@ Triggered when a player achieves a new level.
 - Updates player_levels table
 - Creates celebratory system message
 - Awards bonus points
-- May unlock new features (premium chat, custom profile)
+- May unlock new features (custom profile)
 
 ### Events - Rain Trigger
 

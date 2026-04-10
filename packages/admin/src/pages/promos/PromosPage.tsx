@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, X, Loader2, Megaphone } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Loader2, Megaphone, Send } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../store/auth';
+
+interface Channel {
+  id: string;
+  name: string;
+}
 
 interface PromoCard {
   id: string;
@@ -46,6 +51,11 @@ export function PromosPage() {
   const [formData, setFormData] = useState<PromoFormData>(defaultForm);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [sendToChat, setSendToChat] = useState<PromoCard | null>(null);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState('');
+  const [sending, setSending] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const tenantId = user?.tenantId;
 
@@ -129,6 +139,38 @@ export function PromosPage() {
       await fetchPromos();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to deactivate promo');
+    }
+  };
+
+  const openSendToChat = async (promo: PromoCard) => {
+    setSendToChat(promo);
+    setSelectedChannel('');
+    try {
+      const res = await api.get('/channels');
+      setChannels(res.data);
+      if (res.data.length > 0) setSelectedChannel(res.data[0].id);
+    } catch {
+      setError('Failed to load channels');
+    }
+  };
+
+  const handleSendToChat = async () => {
+    if (!tenantId || !sendToChat || !selectedChannel) return;
+    setSending(true);
+    try {
+      const text = `🎉 ${sendToChat.title} — ${sendToChat.subtitle}. ${sendToChat.ctaText}: ${sendToChat.ctaUrl}`;
+      await api.post(`/tenants/${tenantId}/channels/${selectedChannel}/messages`, {
+        text,
+        type: 'TEXT',
+        source: 'SYSTEM',
+      });
+      setSendToChat(null);
+      setSuccessMsg('Promo sent to chat successfully!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to send promo to chat');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -253,6 +295,15 @@ export function PromosPage() {
         </button>
       </div>
 
+      {successMsg && (
+        <div className="bg-green-900/20 border border-green-800 text-green-400 rounded-lg p-3 mb-4 text-sm flex items-center justify-between">
+          <span>{successMsg}</span>
+          <button onClick={() => setSuccessMsg(null)} className="text-green-400 hover:text-green-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-900/20 border border-red-800 text-red-400 rounded-lg p-3 mb-4 text-sm flex items-center justify-between">
           <span>{error}</span>
@@ -320,6 +371,13 @@ export function PromosPage() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => openSendToChat(promo)}
+                        className="p-2 text-text-muted hover:text-indigo-400 hover:bg-[#1E293B] rounded-lg transition-colors"
+                        title="Send to Chat"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(promo)}
                         className="p-2 text-text-muted hover:text-text-primary hover:bg-[#1E293B] rounded-lg transition-colors"
@@ -410,6 +468,53 @@ export function PromosPage() {
               </button>
             </div>
             <div className="p-6">{renderForm(handleUpdate, true)}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Send to Chat Modal */}
+      {sendToChat && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h3 className="text-lg font-semibold text-text-primary">Send to Chat</h3>
+              <button
+                onClick={() => setSendToChat(null)}
+                className="text-text-muted hover:text-text-primary transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-text-secondary text-sm">
+                Send <span className="text-text-primary font-medium">{sendToChat.title}</span> to a channel:
+              </p>
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value)}
+                className="w-full bg-[#1F2937] border border-border rounded-lg px-3 py-2 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {channels.map((ch) => (
+                  <option key={ch.id} value={ch.id}>{ch.name}</option>
+                ))}
+              </select>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setSendToChat(null)}
+                  className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendToChat}
+                  disabled={sending || !selectedChannel}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+                >
+                  {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Send
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

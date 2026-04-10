@@ -174,8 +174,6 @@ Push events to `POST /webhooks/casino`:
 | Trivia | | | ✅ | ✅ |
 | Leaderboard | | | ✅ | ✅ |
 | Tipping | | | | ✅ |
-| Premium styles | | | | ✅ |
-| Streamer mode | | | | ✅ |
 
 ## Support
 

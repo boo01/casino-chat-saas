@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, RefreshCw } from 'lucide-react';
+import { Trophy, RefreshCw, Calculator, Loader2, X } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../store/auth';
 
@@ -53,6 +53,8 @@ export function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recalculating, setRecalculating] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const fetchLeaderboard = () => {
     if (!tenantId) return;
@@ -68,6 +70,24 @@ export function LeaderboardPage() {
   useEffect(() => {
     fetchLeaderboard();
   }, [tenantId, period]);
+
+  const handleRecalculate = async () => {
+    if (!tenantId) return;
+    setRecalculating(true);
+    setError(null);
+    try {
+      const res = await api.post(`/tenants/${tenantId}/leaderboard/recalculate`, null, {
+        params: { period },
+      });
+      setEntries(res.data);
+      setSuccessMsg('Leaderboard recalculated successfully!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to recalculate leaderboard');
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   if (!tenantId) {
     return (
@@ -103,22 +123,45 @@ export function LeaderboardPage() {
         </button>
       </div>
 
-      {/* Period Tabs */}
-      <div className="flex gap-1 bg-card border border-border rounded-lg p-1 mb-6 w-fit">
-        {PERIODS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setPeriod(p.value)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              period === p.value
-                ? 'bg-indigo-600 text-white'
-                : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Period Tabs + Recalculate */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex gap-1 bg-card border border-border rounded-lg p-1 w-fit">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                period === p.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
+        >
+          {recalculating ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Calculator className="w-4 h-4" />
+          )}
+          Recalculate
+        </button>
       </div>
+
+      {successMsg && (
+        <div className="bg-green-900/20 border border-green-800 text-green-400 rounded-lg p-3 mb-4 text-sm flex items-center justify-between">
+          <span>{successMsg}</span>
+          <button onClick={() => setSuccessMsg(null)} className="text-green-400 hover:text-green-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/20 border border-red-800 text-red-400 rounded-lg p-4 mb-6">{error}</div>
