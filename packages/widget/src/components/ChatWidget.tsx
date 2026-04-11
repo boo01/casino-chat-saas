@@ -1,8 +1,9 @@
 import { h } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
-import type { ChatConfig, ChatMessage, Channel, Player } from '../types';
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import type { ChatConfig, ChatMessage, Channel, Player, ReplyRef } from '../types';
 import { ChatSocket } from '../api/socket';
 import { ChatPanel } from './ChatPanel';
+import { TipModal } from './TipModal';
 
 interface Props {
   config: ChatConfig;
@@ -19,6 +20,13 @@ export function ChatWidget({ config }: Props) {
   const [currentChannel, setCurrentChannel] = useState<string | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
   const [errorState, setErrorState] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
+  const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
+  const [tipTarget, setTipTarget] = useState<{ id: string; username: string } | null>(null);
+  const [tipCurrencies, setTipCurrencies] = useState<Array<{ code: string; name: string; symbol: string; type: string }>>([]);
+  const [tipLoading, setTipLoading] = useState(false);
+  const [tipError, setTipError] = useState<string | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
 
   useEffect(() => {
@@ -39,6 +47,8 @@ export function ChatWidget({ config }: Props) {
           socket.joinChannel(targetChannel.id);
         }
       }
+      // Preload tip currencies
+      socket.requestCurrencies();
     };
 
     socket.onChannelJoined = (data) => {
@@ -77,6 +87,44 @@ export function ChatWidget({ config }: Props) {
       }
     };
 
+    socket.onMessageLiked = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId ? { ...msg, likes: data.likesCount } : msg,
+        ),
+      );
+      // Track if the current player liked/unliked
+      if (data.action === 'liked') {
+        setLikedMessages((prev) => new Set(prev).add(data.messageId));
+      } else {
+        setLikedMessages((prev) => {
+          const next = new Set(prev);
+          next.delete(data.messageId);
+          return next;
+        });
+      }
+    };
+
+    socket.onReportSubmitted = () => {
+      showToast('Report submitted');
+    };
+
+    socket.onTipCurrencies = (data) => {
+      if (data?.currencies) setTipCurrencies(data.currencies);
+    };
+
+    socket.onTipSuccess = () => {
+      setTipLoading(false);
+      setTipTarget(null);
+      setTipError(null);
+      showToast('Tip sent!');
+    };
+
+    socket.onTipFailed = (data) => {
+      setTipLoading(false);
+      setTipError(data?.reason || 'Tip failed');
+    };
+
     socket.onDisconnect = () => {
       setIsConnected(false);
     };
@@ -109,9 +157,70 @@ export function ChatWidget({ config }: Props) {
 
   const handleSend = (text: string) => {
     if (currentChannel && socketRef.current) {
-      socketRef.current.sendMessage(currentChannel, text);
+      socketRef.current.sendMessage(currentChannel, text, replyTo?.id);
+      setReplyTo(null);
     }
   };
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  const handleLike = useCallback((messageId: string) => {
+    if (isGuest || !currentChannel) return;
+    socketRef.current?.likeMessage(messageId, currentChannel);
+    // Optimistic toggle
+    setLikedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  }, [isGuest, currentChannel]);
+
+  const handleReply = useCallback((ref: ReplyRef) => {
+    if (isGuest) return;
+    setReplyTo(ref);
+  }, [isGuest]);
+
+  const handleClearReply = useCallback(() => {
+    setReplyTo(null);
+  }, []);
+
+  const handleTip = useCallback((playerId: string, username: string) => {
+    if (isGuest) return;
+    setTipTarget({ id: playerId, username });
+    setTipError(null);
+    setTipLoading(false);
+  }, [isGuest]);
+
+  const handleTipSend = useCallback((data: { targetPlayerId: string; amount: number; currency: string; isPublic: boolean }) => {
+    if (!currentChannel || !socketRef.current) return;
+    setTipLoading(true);
+    setTipError(null);
+    socketRef.current.sendTip({
+      targetPlayerId: data.targetPlayerId,
+      amount: data.amount,
+      currency: data.currency,
+      channelId: currentChannel,
+      isPublic: data.isPublic,
+    });
+  }, [currentChannel]);
+
+  const handleTipClose = useCallback(() => {
+    setTipTarget(null);
+    setTipError(null);
+    setTipLoading(false);
+  }, []);
+
+  const handleReport = useCallback((data: { messageId: string; playerId: string; reason: string; category: string }) => {
+    if (isGuest) return;
+    socketRef.current?.reportMessage(data);
+  }, [isGuest]);
 
   const position = config.theme?.position || 'bottom-right';
   const width = config.theme?.width || 380;
@@ -140,10 +249,23 @@ export function ChatWidget({ config }: Props) {
     return null;
   }
 
+  // TipModal element (reused across modes)
+  const tipModal = tipTarget && (
+    <TipModal
+      targetPlayer={tipTarget}
+      onClose={handleTipClose}
+      onSend={handleTipSend}
+      currencies={tipCurrencies}
+      isLoading={tipLoading}
+      error={tipError}
+    />
+  );
+
   // Sidebar mode: fill parent container
   if (mode === 'sidebar') {
     return (
-      <div style={{ width: '100%', height: '100%' }}>
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+        {toast && <div class="cc-toast">{toast}</div>}
         <ChatPanel
           config={config}
           isConnected={isConnected}
@@ -155,7 +277,15 @@ export function ChatWidget({ config }: Props) {
           onlineCount={onlineCount}
           onJoinChannel={handleJoinChannel}
           onSendMessage={handleSend}
+          onLike={handleLike}
+          onReply={handleReply}
+          onTip={handleTip}
+          onReport={handleReport}
+          replyTo={replyTo}
+          onClearReply={handleClearReply}
+          likedMessages={likedMessages}
         />
+        {tipModal}
       </div>
     );
   }
@@ -164,6 +294,7 @@ export function ChatWidget({ config }: Props) {
   if (mode === 'fullscreen') {
     return (
       <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, zIndex: 999999 }}>
+        {toast && <div class="cc-toast">{toast}</div>}
         <ChatPanel
           config={config}
           isConnected={isConnected}
@@ -175,7 +306,15 @@ export function ChatWidget({ config }: Props) {
           onlineCount={onlineCount}
           onJoinChannel={handleJoinChannel}
           onSendMessage={handleSend}
+          onLike={handleLike}
+          onReply={handleReply}
+          onTip={handleTip}
+          onReport={handleReport}
+          replyTo={replyTo}
+          onClearReply={handleClearReply}
+          likedMessages={likedMessages}
         />
+        {tipModal}
       </div>
     );
   }
@@ -210,6 +349,7 @@ export function ChatWidget({ config }: Props) {
 
   return (
     <div>
+      {toast && <div class="cc-toast">{toast}</div>}
       <div style={floatingStyle} class="cc-panel--floating">
         <ChatPanel
           config={config}
@@ -223,7 +363,15 @@ export function ChatWidget({ config }: Props) {
           onJoinChannel={handleJoinChannel}
           onSendMessage={handleSend}
           onClose={handleOpen}
+          onLike={handleLike}
+          onReply={handleReply}
+          onTip={handleTip}
+          onReport={handleReport}
+          replyTo={replyTo}
+          onClearReply={handleClearReply}
+          likedMessages={likedMessages}
         />
+        {tipModal}
       </div>
       <div
         class={`cc-fab cc-fab--${position}`}

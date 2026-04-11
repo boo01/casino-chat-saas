@@ -80,6 +80,58 @@ export class WebhookService {
     }
   }
 
+  async sendTipWebhook(
+    tenantId: string,
+    data: {
+      senderId: string;
+      receiverId: string;
+      amount: number;
+      currency: string;
+      tipId: string;
+    },
+  ): Promise<{ approved: boolean; txId?: string; reason?: string }> {
+    const tenant = await this.prismaService.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant?.webhookUrl) {
+      this.logger.debug(
+        `No webhook URL for tenant ${tenantId}, auto-approving tip`,
+      );
+      return { approved: true, txId: `auto_${data.tipId}` };
+    }
+
+    const payload: WebhookPayload = {
+      event: 'tip.request',
+      timestamp: Date.now(),
+      data,
+    };
+
+    try {
+      const response = await axios.post(tenant.webhookUrl, payload, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Casino-Event': 'tip.request',
+          'X-Tenant-ID': tenantId,
+        },
+      });
+
+      const body = response.data || {};
+      return {
+        approved: !!body.approved,
+        txId: body.txId,
+        reason: body.reason,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Tip webhook failed for tenant ${tenantId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return { approved: false, reason: 'Casino service unavailable' };
+    }
+  }
+
   // Webhook Event Handlers
   private async handlePlayerUpdated(tenantId: string, data: any) {
     const { externalId, username, avatarUrl } = data;

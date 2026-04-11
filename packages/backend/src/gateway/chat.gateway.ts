@@ -17,7 +17,8 @@ import { ModerationService } from 'src/modules/moderation/moderation.service';
 import { ChannelService } from 'src/modules/channel/channel.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { PrismaService } from 'src/common/prisma/prisma.service';
-import { MessageType, MessageSource } from '@prisma/client';
+import { WebhookService } from 'src/modules/webhook/webhook.service';
+import { MessageType, MessageSource, ReportCategory, TransactionStatus } from '@prisma/client';
 import { createAdapter } from '@socket.io/redis-adapter';
 
 interface ChatMessage {
@@ -49,6 +50,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private channelService: ChannelService,
     private redisService: RedisService,
     private prismaService: PrismaService,
+    private webhookService: WebhookService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -360,6 +362,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         replyToId,
       });
 
+      // Enrich reply-to data if this is a reply
+      let replyTo: { id: string; username: string; text: string } | null = null;
+      if (replyToId) {
+        try {
+          const replyMsg = await this.prismaService.message.findFirst({
+            where: { id: replyToId, tenantId },
+            include: {
+              player: { select: { username: true } },
+            },
+          });
+          if (replyMsg) {
+            const replyContent = replyMsg.content as any;
+            replyTo = {
+              id: replyMsg.id,
+              username: replyMsg.player?.username || (replyMsg.source === 'OPERATOR' ? 'Admin' : 'System'),
+              text: replyContent?.text || '',
+            };
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to fetch replyTo message ${replyToId}: ${(err as Error).message}`);
+        }
+      }
+
       this.server.to(`channel:${channelId}`).emit('message:received', {
         id: message.id,
         playerId: player.id,
@@ -374,6 +399,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         type: message.type,
         content: message.content,
         replyToId,
+        replyTo,
         createdAt: message.createdAt,
         sequenceNum: message.sequenceNum.toString(),
       });
@@ -472,6 +498,301 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(`tenant:${tenantId}`).emit('player:presence', {
         playerId: player.id,
         lastSeenAt: new Date(),
+      });
+    }
+  }
+
+  @SubscribeMessage('chat:like')
+  async handleChatLike(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { messageId: string; channelId: string },
+  ) {
+    try {
+      const { tenantId, player, isGuest } = socket.data;
+      const { messageId, channelId } = data;
+
+      if (isGuest) {
+        socket.emit('error', { code: 'GUEST_READONLY', message: 'Guests cannot like messages' });
+        return;
+      }
+
+      if (!player) {
+        socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
+        return;
+      }
+
+      if (!messageId) {
+        socket.emit('error', { message: 'messageId is required' });
+        return;
+      }
+
+      const likesKey = `${tenantId}:msg:${messageId}:likes`;
+      const playerId = player.id;
+
+      // Toggle like: if already liked, remove; otherwise, add
+      const alreadyLiked = await this.redisService.sismember(likesKey, playerId);
+
+      if (alreadyLiked) {
+        await this.redisService.srem(likesKey, playerId);
+      } else {
+        await this.redisService.sadd(likesKey, playerId);
+      }
+
+      const likesCount = await this.redisService.scard(likesKey);
+
+      // Broadcast to the channel
+      this.server.to(`channel:${channelId}`).emit('message:liked', {
+        messageId,
+        likesCount,
+        playerId,
+        action: alreadyLiked ? 'unliked' : 'liked',
+      });
+
+      this.logger.debug(`Player ${player.username} ${alreadyLiked ? 'unliked' : 'liked'} message ${messageId}`);
+    } catch (error) {
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Failed to like message' });
+    }
+  }
+
+  @SubscribeMessage('chat:report')
+  async handleChatReport(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { messageId: string; playerId: string; reason: string; category: string },
+  ) {
+    try {
+      const { tenantId, player, isGuest } = socket.data;
+
+      if (isGuest) {
+        socket.emit('error', { code: 'GUEST_READONLY', message: 'Guests cannot submit reports' });
+        return;
+      }
+
+      if (!player) {
+        socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
+        return;
+      }
+
+      const { messageId, playerId: reportedPlayerId, reason, category } = data;
+
+      if (!reportedPlayerId || !reason || !category) {
+        socket.emit('error', { message: 'playerId, reason, and category are required' });
+        return;
+      }
+
+      // Validate category against ReportCategory enum
+      const validCategories: string[] = Object.values(ReportCategory);
+      if (!validCategories.includes(category)) {
+        socket.emit('error', {
+          message: `Invalid category. Must be one of: ${validCategories.join(', ')}`,
+        });
+        return;
+      }
+
+      // Create report in database
+      const report = await this.prismaService.report.create({
+        data: {
+          tenantId,
+          reporterId: player.id,
+          reportedPlayerId,
+          messageId: messageId || null,
+          reason,
+          category: category as ReportCategory,
+        },
+      });
+
+      // Emit confirmation back to the reporting player
+      socket.emit('report:submitted', {
+        reportId: report.id,
+        messageId: messageId || null,
+      });
+
+      this.logger.log(`Report ${report.id} created by ${player.username} against player ${reportedPlayerId}`);
+    } catch (error) {
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Failed to submit report' });
+    }
+  }
+
+  @SubscribeMessage('tip:send')
+  async handleTipSend(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: {
+      targetPlayerId: string;
+      amount: number;
+      currency: string;
+      channelId: string;
+      isPublic: boolean;
+    },
+  ) {
+    try {
+      const { tenantId, player, isGuest } = socket.data;
+
+      if (isGuest) {
+        socket.emit('error', { code: 'GUEST_READONLY', message: 'Guests cannot send tips' });
+        return;
+      }
+
+      if (!player) {
+        socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
+        return;
+      }
+
+      const { targetPlayerId, amount, currency, channelId, isPublic } = data;
+
+      // Validate input
+      if (!targetPlayerId || !currency || !channelId) {
+        socket.emit('error', { message: 'targetPlayerId, currency, and channelId are required' });
+        return;
+      }
+
+      if (typeof amount !== 'number' || amount <= 0) {
+        socket.emit('error', { message: 'Amount must be a positive number' });
+        return;
+      }
+
+      if (targetPlayerId === player.id) {
+        socket.emit('error', { message: 'You cannot tip yourself' });
+        return;
+      }
+
+      // Look up receiver
+      const receiver = await this.prismaService.player.findFirst({
+        where: { id: targetPlayerId, tenantId },
+      });
+
+      if (!receiver) {
+        socket.emit('error', { message: 'Recipient player not found' });
+        return;
+      }
+
+      // Create PENDING TipTransaction
+      const tipTransaction = await this.prismaService.tipTransaction.create({
+        data: {
+          tenantId,
+          senderId: player.id,
+          receiverId: targetPlayerId,
+          amount,
+          currency,
+          status: TransactionStatus.PENDING,
+          isPublic: isPublic ?? true,
+        },
+      });
+
+      // Send webhook to casino for approval
+      const result = await this.webhookService.sendTipWebhook(tenantId, {
+        senderId: player.id,
+        receiverId: targetPlayerId,
+        amount,
+        currency,
+        tipId: tipTransaction.id,
+      });
+
+      if (result.approved) {
+        // Update to COMPLETED
+        await this.prismaService.tipTransaction.update({
+          where: { id: tipTransaction.id },
+          data: {
+            status: TransactionStatus.COMPLETED,
+            casinoTxId: result.txId || null,
+          },
+        });
+
+        // If public, broadcast a TIP message to the channel
+        if (isPublic) {
+          const tipContent = {
+            fromPlayer: player.username,
+            toPlayer: receiver.username,
+            tipAmount: amount,
+            tipCurrency: currency,
+          };
+
+          const message = await this.chatService.sendMessage({
+            tenantId,
+            channelId,
+            playerId: player.id,
+            type: MessageType.TIP,
+            source: MessageSource.SYSTEM,
+            content: tipContent,
+          });
+
+          this.server.to(`channel:${channelId}`).emit('message:received', {
+            id: message.id,
+            playerId: player.id,
+            username: player.username,
+            avatarUrl: player.avatarUrl,
+            level: player.level,
+            vipStatus: player.vipStatus,
+            isPremium: player.isPremium,
+            premiumStyle: player.premiumStyle,
+            isModerator: player.isModerator,
+            isStreamer: player.isStreamer,
+            type: MessageType.TIP,
+            content: tipContent,
+            createdAt: message.createdAt,
+            sequenceNum: message.sequenceNum.toString(),
+          });
+        }
+
+        // Emit success to sender
+        socket.emit('tip:success', {
+          tipId: tipTransaction.id,
+          amount,
+          currency,
+          toPlayer: receiver.username,
+        });
+
+        this.logger.log(
+          `Tip ${tipTransaction.id}: ${player.username} → ${receiver.username} (${amount} ${currency})`,
+        );
+      } else {
+        // Update to FAILED
+        await this.prismaService.tipTransaction.update({
+          where: { id: tipTransaction.id },
+          data: { status: TransactionStatus.FAILED },
+        });
+
+        socket.emit('tip:failed', {
+          tipId: tipTransaction.id,
+          reason: result.reason || 'Tip declined by casino',
+        });
+
+        this.logger.log(
+          `Tip ${tipTransaction.id} declined: ${result.reason}`,
+        );
+      }
+    } catch (error) {
+      socket.emit('error', {
+        message: error instanceof Error ? error.message : 'Failed to process tip',
+      });
+    }
+  }
+
+  @SubscribeMessage('tip:currencies')
+  async handleTipCurrencies(@ConnectedSocket() socket: Socket) {
+    try {
+      const { tenantId } = socket.data;
+
+      const tenantCurrencies = await this.prismaService.tenantCurrency.findMany({
+        where: { tenantId, isActive: true },
+        include: {
+          currency: {
+            select: { code: true, name: true, symbol: true, type: true },
+          },
+        },
+        orderBy: { currency: { sortOrder: 'asc' } },
+      });
+
+      const currencies = tenantCurrencies.map((tc) => ({
+        code: tc.currency.code,
+        name: tc.currency.name,
+        symbol: tc.currency.symbol,
+        type: tc.currency.type,
+      }));
+
+      socket.emit('tip:currencies', { currencies });
+    } catch (error) {
+      socket.emit('error', {
+        message: error instanceof Error ? error.message : 'Failed to fetch currencies',
       });
     }
   }

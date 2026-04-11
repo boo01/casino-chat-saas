@@ -1,10 +1,24 @@
 import { h } from 'preact';
 import { useState } from 'preact/hooks';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, ReplyRef } from '../types';
+
+const REPORT_CATEGORIES = [
+  { value: 'SPAM', label: 'Spam' },
+  { value: 'HARASSMENT', label: 'Harassment' },
+  { value: 'INAPPROPRIATE', label: 'Inappropriate' },
+  { value: 'SCAM', label: 'Scam' },
+  { value: 'OTHER', label: 'Other' },
+] as const;
 
 interface Props {
   message: ChatMessage;
   isOwn: boolean;
+  isGuest?: boolean;
+  isLiked?: boolean;
+  onLike?: (messageId: string) => void;
+  onReply?: (ref: ReplyRef) => void;
+  onTip?: (playerId: string, username: string) => void;
+  onReport?: (data: { messageId: string; playerId: string; reason: string; category: string }) => void;
 }
 
 const VIP_COLORS: Record<string, string> = {
@@ -69,8 +83,10 @@ function parseText(text: string): Array<{ type: 'text' | 'mention'; value: strin
   return parts.length > 0 ? parts : [{ type: 'text', value: text }];
 }
 
-export function ChatMessageItem({ message, isOwn }: Props) {
+export function ChatMessageItem({ message, isOwn, isGuest, isLiked, onLike, onReply, onTip, onReport }: Props) {
   const [isHovered, setIsHovered] = useState(false);
+  const [showReportDropdown, setShowReportDropdown] = useState(false);
+  const [reportReason, setReportReason] = useState('');
   const {
     username,
     avatarUrl,
@@ -135,7 +151,7 @@ export function ChatMessageItem({ message, isOwn }: Props) {
     <div
       class={`cc-msg ${isOwn ? 'cc-msg--own' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => { setIsHovered(false); setShowReportDropdown(false); }}
     >
       {/* Avatar with level badge */}
       <div class="cc-msg__avatar-wrap">
@@ -209,14 +225,17 @@ export function ChatMessageItem({ message, isOwn }: Props) {
         </div>
 
         {/* Reactions bar */}
-        {hasReactions && (
+        {(hasReactions || isLiked) && (
           <div class="cc-reactions">
-            {likes != null && likes > 0 && (
-              <button class="cc-reactions__like">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+            {((likes != null && likes > 0) || isLiked) && (
+              <button
+                class={`cc-reactions__like ${isLiked ? 'cc-reactions__like--active' : ''}`}
+                onClick={() => onLike?.(message.id)}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill={isLiked ? '#EF4444' : 'none'} stroke={isLiked ? '#EF4444' : 'currentColor'} stroke-width="2">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
-                <span>{likes}</span>
+                <span>{(likes || 0) > 0 ? likes : isLiked ? 1 : ''}</span>
               </button>
             )}
             {reactionEntries.map(([emoji, count]) => (
@@ -234,27 +253,90 @@ export function ChatMessageItem({ message, isOwn }: Props) {
       {/* Hover action buttons */}
       {isHovered && (
         <div class="cc-msg__hover-actions">
-          <button class="cc-msg__hover-btn" title="Like">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button
+            class={`cc-msg__hover-btn ${isLiked ? 'cc-msg__hover-btn--liked' : ''}`}
+            title={isGuest ? 'Sign in to like' : 'Like'}
+            onClick={() => { if (!isGuest) onLike?.(message.id); }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill={isLiked ? '#EF4444' : 'none'} stroke={isLiked ? '#EF4444' : 'currentColor'} stroke-width="2">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
           </button>
-          <button class="cc-msg__hover-btn" title="Reply">
+          <button
+            class="cc-msg__hover-btn"
+            title={isGuest ? 'Sign in to reply' : 'Reply'}
+            onClick={() => {
+              if (!isGuest && onReply) {
+                onReply({ id: message.id, username: displayName, text: text.slice(0, 100) });
+              }
+            }}
+          >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </button>
-          <button class="cc-msg__hover-btn cc-msg__hover-btn--tip" title="Tip">
+          <button
+            class="cc-msg__hover-btn cc-msg__hover-btn--tip"
+            title={isGuest ? 'Sign in to tip' : 'Tip'}
+            onClick={() => { if (!isGuest && message.playerId) onTip?.(message.playerId, displayName); }}
+          >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" />
-              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+              <circle cx="12" cy="12" r="10" />
+              <text x="12" y="16" text-anchor="middle" font-size="14" font-weight="bold" fill="currentColor" stroke="none">$</text>
             </svg>
           </button>
-          <button class="cc-msg__hover-btn" title="Report">
+          <button
+            class="cc-msg__hover-btn"
+            title={isGuest ? 'Sign in to report' : 'Report'}
+            onClick={() => {
+              if (!isGuest) setShowReportDropdown((prev) => !prev);
+            }}
+          >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
               <line x1="4" y1="22" x2="4" y2="15" />
             </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Report dropdown */}
+      {showReportDropdown && (
+        <div class="cc-report-dropdown" onClick={(e) => e.stopPropagation()}>
+          <div class="cc-report-dropdown__title">Report message</div>
+          {REPORT_CATEGORIES.map((cat) => (
+            <button
+              key={cat.value}
+              class="cc-report-dropdown__item"
+              onClick={() => {
+                if (onReport && message.playerId) {
+                  onReport({
+                    messageId: message.id,
+                    playerId: message.playerId,
+                    reason: reportReason || cat.label,
+                    category: cat.value,
+                  });
+                }
+                setShowReportDropdown(false);
+                setReportReason('');
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+          <input
+            class="cc-report-dropdown__input"
+            type="text"
+            placeholder="Add reason (optional)..."
+            value={reportReason}
+            onInput={(e) => setReportReason((e.target as HTMLInputElement).value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            class="cc-report-dropdown__cancel"
+            onClick={() => { setShowReportDropdown(false); setReportReason(''); }}
+          >
+            Cancel
           </button>
         </div>
       )}

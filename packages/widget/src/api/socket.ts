@@ -14,6 +14,11 @@ export class ChatSocket {
   onTyping: ((data: any) => void) | null = null;
   onError: ((error: any) => void) | null = null;
   onDisconnect: (() => void) | null = null;
+  onMessageLiked: ((data: { messageId: string; likesCount: number; playerId: string; action: string }) => void) | null = null;
+  onReportSubmitted: ((data: any) => void) | null = null;
+  onTipSuccess: ((data: any) => void) | null = null;
+  onTipFailed: ((data: any) => void) | null = null;
+  onTipCurrencies: ((data: any) => void) | null = null;
 
   constructor(config: ChatConfig) {
     this.config = config;
@@ -40,6 +45,11 @@ export class ChatSocket {
     this.socket.on('player:typing', (data) => this.onTyping?.(data));
     this.socket.on('error', (err) => this.onError?.(err));
     this.socket.on('chat:error', (err) => this.onError?.(err));
+    this.socket.on('message:liked', (data) => this.onMessageLiked?.(data));
+    this.socket.on('report:submitted', (data) => this.onReportSubmitted?.(data));
+    this.socket.on('tip:success', (data) => this.onTipSuccess?.(data));
+    this.socket.on('tip:failed', (data) => this.onTipFailed?.(data));
+    this.socket.on('tip:currencies', (data) => this.onTipCurrencies?.(data));
     this.socket.on('disconnect', () => this.onDisconnect?.());
   }
 
@@ -61,6 +71,22 @@ export class ChatSocket {
 
   claimRain(rainId: string) {
     this.socket?.emit('rain:claim', { rainId });
+  }
+
+  likeMessage(messageId: string, channelId: string) {
+    this.socket?.emit('chat:like', { messageId, channelId });
+  }
+
+  reportMessage(data: { messageId: string; playerId: string; reason: string; category: string }) {
+    this.socket?.emit('chat:report', data);
+  }
+
+  sendTip(data: { targetPlayerId: string; amount: number; currency: string; channelId: string; isPublic: boolean }) {
+    this.socket?.emit('tip:send', data);
+  }
+
+  requestCurrencies() {
+    this.socket?.emit('tip:currencies', {});
   }
 
   disconnect() {

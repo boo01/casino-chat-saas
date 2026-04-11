@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import type { ChatMessage as ChatMessageType, Player } from '../types';
+import type { ChatMessage as ChatMessageType, Player, ReplyRef } from '../types';
 import { ChatMessageItem } from './ChatMessage';
 import { WinCard } from './WinCard';
 import { RainEvent } from './RainEvent';
@@ -11,9 +11,14 @@ interface Props {
   messages: ChatMessageType[];
   currentPlayer: Player | null;
   isGuest?: boolean;
+  onLike?: (messageId: string) => void;
+  onReply?: (ref: ReplyRef) => void;
+  onTip?: (playerId: string, username: string) => void;
+  onReport?: (data: { messageId: string; playerId: string; reason: string; category: string }) => void;
+  likedMessages?: Set<string>;
 }
 
-export function MessageList({ messages, currentPlayer, isGuest }: Props) {
+export function MessageList({ messages, currentPlayer, isGuest, onLike, onReply, onTip, onReport, likedMessages }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
@@ -90,6 +95,12 @@ export function MessageList({ messages, currentPlayer, isGuest }: Props) {
                 key={msg.id}
                 message={msg}
                 isOwn={isOwn}
+                isGuest={isGuest}
+                isLiked={likedMessages?.has(msg.id) || false}
+                onLike={onLike}
+                onReply={onReply}
+                onTip={onTip}
+                onReport={onReport}
               />
             );
         }

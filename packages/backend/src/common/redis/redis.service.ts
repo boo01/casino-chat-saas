@@ -118,6 +118,10 @@ export class RedisService {
     return this.client.sismember(key, member);
   }
 
+  async scard(key: string): Promise<number> {
+    return this.client.scard(key);
+  }
+
   // Sorted Set operations
   async zadd(
     key: string,

@@ -1,11 +1,14 @@
 import { h } from 'preact';
 import { useState, useRef } from 'preact/hooks';
+import type { ReplyRef } from '../types';
 
 interface Props {
   isGuest: boolean;
   onSend: (text: string) => void;
   primaryColor: string;
   onlineCount: number;
+  replyTo?: ReplyRef | null;
+  onClearReply?: () => void;
 }
 
 const QUICK_EMOJIS = [
@@ -14,7 +17,7 @@ const QUICK_EMOJIS = [
   '😎', '🙌', '💪', '❤️', '👍', '👎', '😱', '🍀',
 ];
 
-export function ChatInput({ isGuest, onSend, primaryColor, onlineCount }: Props) {
+export function ChatInput({ isGuest, onSend, primaryColor, onlineCount, replyTo, onClearReply }: Props) {
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +54,20 @@ export function ChatInput({ isGuest, onSend, primaryColor, onlineCount }: Props)
 
   return (
     <div class="cc-input" style={{ position: 'relative' }}>
+      {/* Reply bar */}
+      {replyTo && (
+        <div class="cc-reply-bar">
+          <span class="cc-reply-bar__text">
+            {'\u21A9'} @{replyTo.username}: {replyTo.text.length > 60 ? replyTo.text.slice(0, 60) + '...' : replyTo.text}
+          </span>
+          <button class="cc-reply-bar__close" onClick={onClearReply} aria-label="Cancel reply">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Emoji picker */}
       {showEmojis && (
         <div class="cc-emoji-picker">

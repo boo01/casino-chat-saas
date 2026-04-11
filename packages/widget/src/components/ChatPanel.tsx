@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import type { ChatConfig, ChatMessage, Channel, Player } from '../types';
+import type { ChatConfig, ChatMessage, Channel, Player, ReplyRef } from '../types';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
@@ -16,6 +16,13 @@ export interface ChatPanelProps {
   onJoinChannel: (id: string) => void;
   onSendMessage: (text: string) => void;
   onClose?: () => void;
+  onLike?: (messageId: string) => void;
+  onReply?: (ref: ReplyRef) => void;
+  onTip?: (playerId: string, username: string) => void;
+  onReport?: (data: { messageId: string; playerId: string; reason: string; category: string }) => void;
+  replyTo?: ReplyRef | null;
+  onClearReply?: () => void;
+  likedMessages?: Set<string>;
 }
 
 export function ChatPanel({
@@ -30,6 +37,13 @@ export function ChatPanel({
   onJoinChannel,
   onSendMessage,
   onClose,
+  onLike,
+  onReply,
+  onTip,
+  onReport,
+  replyTo,
+  onClearReply,
+  likedMessages,
 }: ChatPanelProps) {
   const mode = config.mode || 'floating';
   const primaryColor = config.theme?.primaryColor || '#6366F1';
@@ -50,12 +64,19 @@ export function ChatPanel({
         messages={messages}
         currentPlayer={player}
         isGuest={isGuest}
+        onLike={onLike}
+        onReply={onReply}
+        onTip={onTip}
+        onReport={onReport}
+        likedMessages={likedMessages}
       />
       <ChatInput
         isGuest={isGuest}
         onSend={onSendMessage}
         primaryColor={primaryColor}
         onlineCount={onlineCount}
+        replyTo={replyTo}
+        onClearReply={onClearReply}
       />
     </div>
   );
