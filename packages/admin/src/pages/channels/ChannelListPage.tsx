@@ -14,6 +14,7 @@ interface Channel {
   sortOrder: number;
   maxMessages: number;
   slowModeSeconds: number;
+  settings: { minLevel?: number; minWagered?: number };
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +26,8 @@ interface ChannelFormData {
   description: string;
   isActive: boolean;
   sortOrder: number;
+  minLevel: number;
+  minWagered: number;
 }
 
 const defaultFormData: ChannelFormData = {
@@ -34,6 +37,8 @@ const defaultFormData: ChannelFormData = {
   description: '',
   isActive: true,
   sortOrder: 0,
+  minLevel: 0,
+  minWagered: 0,
 };
 
 function ChannelModal({
@@ -127,6 +132,33 @@ function ChannelModal({
               }
               className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-text-muted mb-1">Min Level (0 = no restriction)</label>
+              <input
+                type="number"
+                value={formData.minLevel}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, minLevel: parseInt(e.target.value, 10) || 0 }))
+                }
+                min="0"
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-text-muted mb-1">Min Wagered (0 = no restriction)</label>
+              <input
+                type="number"
+                value={formData.minWagered}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, minWagered: parseInt(e.target.value, 10) || 0 }))
+                }
+                min="0"
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -258,6 +290,7 @@ export function ChannelListPage() {
 
   const openEditModal = (channel: Channel) => {
     setEditingChannel(channel);
+    const s = (channel.settings as any) || {};
     setFormData({
       name: channel.name,
       emoji: channel.emoji,
@@ -265,6 +298,8 @@ export function ChannelListPage() {
       description: channel.description || '',
       isActive: channel.isActive,
       sortOrder: channel.sortOrder,
+      minLevel: s.minLevel || 0,
+      minWagered: s.minWagered || 0,
     });
     setIsModalOpen(true);
   };
@@ -286,6 +321,10 @@ export function ChannelListPage() {
         description: formData.description.trim(),
         isActive: formData.isActive,
         sortOrder: formData.sortOrder,
+        settings: {
+          minLevel: formData.minLevel || 0,
+          minWagered: formData.minWagered || 0,
+        },
       };
 
       if (editingChannel) {
@@ -368,6 +407,7 @@ export function ChannelListPage() {
               <th className="p-4">Channel</th>
               <th className="p-4">Language</th>
               <th className="p-4">Status</th>
+              <th className="p-4">Restrictions</th>
               <th className="p-4">Sort Order</th>
               <th className="p-4 text-right">Actions</th>
             </tr>
@@ -400,6 +440,23 @@ export function ChannelListPage() {
                     {ch.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </td>
+                <td className="p-4">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {((ch.settings as any)?.minLevel || 0) > 0 && (
+                      <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-400">
+                        Lv.{(ch.settings as any).minLevel}+
+                      </span>
+                    )}
+                    {((ch.settings as any)?.minWagered || 0) > 0 && (
+                      <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">
+                        Wager {(ch.settings as any).minWagered}+
+                      </span>
+                    )}
+                    {!((ch.settings as any)?.minLevel > 0) && !((ch.settings as any)?.minWagered > 0) && (
+                      <span className="text-xs text-text-muted">None</span>
+                    )}
+                  </div>
+                </td>
                 <td className="p-4 text-text-muted text-sm">{ch.sortOrder}</td>
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-2">
@@ -423,7 +480,7 @@ export function ChannelListPage() {
             ))}
             {channels.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-12 text-center text-text-muted">
+                <td colSpan={6} className="p-12 text-center text-text-muted">
                   <p className="mb-2">No channels found</p>
                   <button
                     onClick={openCreateModal}

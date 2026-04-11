@@ -37,14 +37,27 @@ export class ChatController {
   ) {
     const source = (body.source as MessageSource) || MessageSource.OPERATOR;
     const isPlayerSource = source === MessageSource.PLAYER;
+    const msgType = (body.type as MessageType) || MessageType.TEXT;
+
+    // For structured types (TRIVIA, PROMO, etc.), parse the text as JSON content
+    let content: Record<string, any>;
+    if (msgType !== MessageType.TEXT && msgType !== MessageType.SYSTEM) {
+      try {
+        content = JSON.parse(body.text);
+      } catch {
+        content = { text: body.text };
+      }
+    } else {
+      content = { text: body.text };
+    }
 
     const message = await this.chatService.sendMessage({
       tenantId,
       channelId,
       playerId: isPlayerSource ? user?.id : null,
-      type: (body.type as MessageType) || MessageType.TEXT,
+      type: msgType,
       source,
-      content: { text: body.text },
+      content,
     });
 
     // Broadcast via WebSocket so widget clients see it instantly

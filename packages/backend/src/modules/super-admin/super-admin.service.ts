@@ -9,9 +9,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from 'src/common/prisma/prisma.service';
+import { TenantService } from 'src/modules/tenant/tenant.service';
 import { CreateSuperAdminDto } from './dto/create-super-admin.dto';
 import { UpdateSuperAdminDto } from './dto/update-super-admin.dto';
 import { SuperAdminLoginDto } from './dto/super-admin-login.dto';
+import { CreateTenantDto } from 'src/modules/tenant/dto/create-tenant.dto';
 
 @Injectable()
 export class SuperAdminService {
@@ -21,6 +23,7 @@ export class SuperAdminService {
     private prismaService: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private tenantService: TenantService,
   ) {}
 
   async login(dto: SuperAdminLoginDto) {
@@ -193,6 +196,90 @@ export class SuperAdminService {
       activeTenants,
       totalPlayers,
       totalMessages,
+    };
+  }
+
+  async createTenant(data: CreateTenantDto) {
+    const tenant = await this.tenantService.createTenant(data);
+    // Assign USD as default currency if it exists
+    const usd = await this.prismaService.currency.findUnique({ where: { code: 'USD' } });
+    if (usd) {
+      await this.prismaService.tenantCurrency.create({
+        data: { tenantId: tenant.id, currencyId: usd.id, isDefault: true },
+      });
+    }
+    return tenant;
+  }
+
+  async updateTenant(id: string, data: { name?: string; domain?: string; tier?: any; webhookUrl?: string; isActive?: boolean }) {
+    return this.tenantService.updateTenant(id, data);
+  }
+
+  async suspendTenant(id: string) {
+    const tenant = await this.prismaService.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return this.prismaService.tenant.update({ where: { id }, data: { isActive: false } });
+  }
+
+  async activateTenant(id: string) {
+    const tenant = await this.prismaService.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return this.prismaService.tenant.update({ where: { id }, data: { isActive: true } });
+  }
+
+  async deleteTenant(id: string) {
+    return this.tenantService.deleteTenant(id);
+  }
+
+  async getTenantAdmins(tenantId: string) {
+    const tenant = await this.prismaService.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return this.prismaService.tenantAdmin.findMany({
+      where: { tenantId },
+      select: { id: true, email: true, role: true, isActive: true, createdAt: true },
+    });
+  }
+
+  async impersonateTenant(tenantId: string, superAdminId: string) {
+    const tenant = await this.prismaService.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const owner = await this.prismaService.tenantAdmin.findFirst({
+      where: { tenantId, role: 'OWNER', isActive: true },
+    });
+    if (!owner) throw new NotFoundException('No active owner found for this tenant');
+
+    const token = this.jwtService.sign(
+      {
+        id: owner.id,
+        tenantId: owner.tenantId,
+        email: owner.email,
+        role: owner.role,
+        isSuperAdmin: false,
+        impersonatedBy: superAdminId,
+      },
+      {
+        secret: this.configService.get<string>('jwt.secret'),
+        expiresIn: '4h',
+      },
+    );
+
+    return {
+      accessToken: token,
+      tokenType: 'Bearer',
+      expiresIn: 14400,
+      admin: {
+        id: owner.id,
+        email: owner.email,
+        tenantId: owner.tenantId,
+        role: owner.role,
+      },
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        domain: tenant.domain,
+        tier: tenant.tier,
+      },
     };
   }
 

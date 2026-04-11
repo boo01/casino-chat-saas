@@ -16,6 +16,7 @@ import { PlayerService } from 'src/modules/player/player.service';
 import { ModerationService } from 'src/modules/moderation/moderation.service';
 import { ChannelService } from 'src/modules/channel/channel.service';
 import { RedisService } from 'src/common/redis/redis.service';
+import { PrismaService } from 'src/common/prisma/prisma.service';
 import { MessageType, MessageSource } from '@prisma/client';
 import { createAdapter } from '@socket.io/redis-adapter';
 
@@ -47,6 +48,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private moderationService: ModerationService,
     private channelService: ChannelService,
     private redisService: RedisService,
+    private prismaService: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -75,6 +77,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.logger.warn('Connection attempt without tenantId');
         socket.emit('error', { code: 'MISSING_TENANT', message: 'tenantId is required' });
         socket.disconnect();
+        return;
+      }
+
+      // Check if tenant is active
+      const tenant = await this.prismaService.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant || !tenant.isActive) {
+        this.logger.warn(`Tenant ${tenantId} is suspended/missing, rejecting connection`);
+        socket.emit('chat:error', { code: 'TENANT_SUSPENDED', message: 'Chat is temporarily disabled' });
+        socket.disconnect(true);
         return;
       }
 
@@ -217,6 +228,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const { channelId } = data;
 
       const channel = await this.channelService.getChannel(tenantId, channelId);
+
+      // Enforce channel access rules from settings
+      const settings = (channel.settings as any) || {};
+      const minLevel = settings.minLevel || 0;
+
+      if (!socket.data.isAdmin && !isGuest && player) {
+        if (minLevel > 0 && player.level < minLevel) {
+          socket.emit('error', {
+            code: 'CHANNEL_RESTRICTED',
+            message: `This channel requires level ${minLevel}+`,
+          });
+          return;
+        }
+      }
 
       socket.join(`channel:${channelId}`);
 

@@ -108,10 +108,15 @@ start_backend() {
 stop_backend() {
   echo -e "\n${BOLD}Backend (NestJS)${NC}"
   if [ -f "$LOG_DIR/backend.pid" ]; then
-    kill -9 "$(cat "$LOG_DIR/backend.pid")" 2>/dev/null || true
+    local pid=$(cat "$LOG_DIR/backend.pid")
+    # Kill the process group (parent + child watchers)
+    kill -9 -"$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
     rm -f "$LOG_DIR/backend.pid"
   fi
+  # Also kill any nest processes and anything on port 3000
+  pkill -9 -f "nest start" 2>/dev/null || true
   kill_port 3000
+  sleep 1
   log_ok "Backend stopped"
 }
 

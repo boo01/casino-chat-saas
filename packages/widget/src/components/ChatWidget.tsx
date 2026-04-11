@@ -18,6 +18,7 @@ export function ChatWidget({ config }: Props) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [currentChannel, setCurrentChannel] = useState<string | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
 
   useEffect(() => {
@@ -70,6 +71,10 @@ export function ChatWidget({ config }: Props) {
 
     socket.onError = (err) => {
       console.warn('[CasinoChat] Error:', err);
+      if (err?.code === 'TENANT_SUSPENDED' || err?.code === 'MISSING_TENANT') {
+        setErrorState(err.message || 'Chat is temporarily disabled');
+        socket.disconnect(); // Stop reconnection attempts
+      }
     };
 
     socket.onDisconnect = () => {
@@ -112,6 +117,28 @@ export function ChatWidget({ config }: Props) {
   const width = config.theme?.width || 380;
   const height = config.theme?.height || 600;
   const primaryColor = config.theme?.primaryColor || '#6366F1';
+
+  // Show error state (e.g. tenant suspended)
+  if (errorState) {
+    const errorContent = (
+      <div class="cc-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#0d121d' }}>
+        <div style={{ textAlign: 'center', padding: '32px', color: '#9CA3AF' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚫</div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#F9FAFB', marginBottom: '8px' }}>Chat Unavailable</div>
+          <div style={{ fontSize: '13px' }}>{errorState}</div>
+        </div>
+      </div>
+    );
+
+    if (mode === 'fullscreen') {
+      return <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }}>{errorContent}</div>;
+    }
+    if (mode === 'sidebar') {
+      return <div style={{ width: '100%', height: '100%' }}>{errorContent}</div>;
+    }
+    // floating — don't show anything (no bubble)
+    return null;
+  }
 
   // Sidebar mode: fill parent container
   if (mode === 'sidebar') {

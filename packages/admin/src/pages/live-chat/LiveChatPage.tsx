@@ -51,9 +51,9 @@ interface ChatMessage {
   tenantId: string;
   channelId: string;
   playerId: string | null;
-  type: 'TEXT' | 'SYSTEM' | 'WIN' | 'RAIN';
-  source: 'PLAYER' | 'OPERATOR' | 'SYSTEM';
-  content: { text: string };
+  type: string;
+  source: string;
+  content: Record<string, any>;
   player?: MessagePlayer;
   createdAt: string;
   sequenceNum: string;
@@ -222,9 +222,12 @@ function MessageBubble({
   const isSystem = msg.type === 'SYSTEM' || msg.source === 'SYSTEM';
   const isOperator = msg.source === 'OPERATOR';
   const isPlayer = msg.source === 'PLAYER';
-  const username = msg.player?.username ?? (isOperator ? 'Admin' : 'System');
+  const username = (msg as any).username || msg.player?.username || (isOperator ? 'Admin' : 'System');
 
-  if (isSystem) {
+  const msgType = (msg.type || 'TEXT').toUpperCase();
+
+  // System messages
+  if (isSystem && msgType === 'SYSTEM') {
     return (
       <div className="flex justify-center my-2">
         <span className="text-xs text-text-muted italic bg-page/50 px-3 py-1 rounded-full">
@@ -234,6 +237,88 @@ function MessageBubble({
     );
   }
 
+  // Rain event card
+  if (msgType === 'RAIN') {
+    return (
+      <div className="mx-3 my-2 rounded-xl p-4 border border-purple-500/30" style={{ background: 'linear-gradient(135deg, #1E3A5F, #2D1B69)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🌧️</span>
+          <div>
+            <div className="text-sm font-bold text-white">RAIN EVENT</div>
+            <div className="text-xs text-purple-300">
+              {msg.content.initiator || 'Admin'} is raining {msg.content.amount || 0} {msg.content.currency || 'USD'} on chat!
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-purple-300/70">Duration: {msg.content.duration || 60}s</div>
+      </div>
+    );
+  }
+
+  // Trivia card
+  if (msgType === 'TRIVIA') {
+    const options = msg.content.options || [];
+    return (
+      <div className="mx-3 my-2 rounded-xl p-4 border border-amber-500/30" style={{ background: 'linear-gradient(135deg, rgba(217,119,6,0.15), #111827)' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xl">🧠</span>
+          <span className="text-sm font-bold text-amber-400">CHAT TRIVIA</span>
+        </div>
+        <p className="text-sm text-text-primary mb-3">{msg.content.question}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {options.map((opt: string, i: number) => (
+            <div key={i} className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-text-secondary">
+              {String.fromCharCode(65 + i)}) {opt}
+            </div>
+          ))}
+        </div>
+        {msg.content.reward && (
+          <div className="text-xs text-amber-400/70 mt-2">Reward: {msg.content.reward}</div>
+        )}
+      </div>
+    );
+  }
+
+  // Promo card
+  if (msgType === 'PROMO') {
+    return (
+      <div className="mx-3 my-2 rounded-xl p-4 border-l-4" style={{ borderLeftColor: msg.content.accentColor || '#EF4444', background: '#111827' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xl">{msg.content.emoji || '🎉'}</span>
+          <span className="text-sm font-bold text-text-primary">{msg.content.title}</span>
+        </div>
+        {msg.content.subtitle && <p className="text-xs text-text-secondary mb-1">{msg.content.subtitle}</p>}
+        {msg.content.detailText && <p className="text-xs text-text-muted">{msg.content.detailText}</p>}
+        {msg.content.ctaText && (
+          <div className="mt-2">
+            <span className="text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: msg.content.accentColor || '#EF4444', color: 'white' }}>
+              {msg.content.ctaText}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Win card
+  if (msgType === 'WIN') {
+    return (
+      <div className="mx-3 my-2 rounded-xl p-4 border-l-4 border-green-500" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), #111827)' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-semibold text-green-400">{username}</span>
+          <span className="text-xs text-text-muted">won on {msg.content.game || 'Casino'}</span>
+        </div>
+        {msg.content.win != null && (
+          <div className="text-lg font-bold text-white">{msg.content.currency || '$'}{msg.content.win}</div>
+        )}
+        {msg.content.text && !msg.content.win && (
+          <p className="text-sm text-green-300">{msg.content.text}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Default: text message
   const color = colorFromName(username);
 
   return (

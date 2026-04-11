@@ -31,4 +31,8 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ example: { minLevel: 0, minWagered: 0 }, description: 'Channel access settings' })
+  @IsOptional()
+  settings?: Record<string, any>;
 }

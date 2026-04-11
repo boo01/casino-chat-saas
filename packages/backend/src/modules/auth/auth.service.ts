@@ -35,6 +35,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid email or password');
       }
 
+      // Check if tenant is active (suspended tenants cannot log in)
+      const tenant = await this.prismaService.tenant.findUnique({ where: { id: admin.tenantId } });
+      if (tenant && !tenant.isActive) {
+        throw new UnauthorizedException('Your account is suspended. Contact platform support.');
+      }
+
       return this.generateToken({
         id: admin.id,
         tenantId: admin.tenantId,

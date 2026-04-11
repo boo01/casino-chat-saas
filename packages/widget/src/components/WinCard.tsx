@@ -3,74 +3,94 @@ import type { ChatMessage } from '../types';
 
 interface Props {
   message: ChatMessage;
+  isGuest?: boolean;
 }
 
-export function WinCard({ message }: Props) {
+export function WinCard({ message, isGuest }: Props) {
   const { content } = message;
   const game = content?.game || 'Unknown Game';
-  const gameIcon = content?.gameIcon || game[0] || '?';
+  const gameColor = content?.accentColor || '#22C55E';
   const bet = content?.bet;
   const win = content?.win;
   const multiplier = content?.multiplier;
-  const currency = content?.currency || 'USD';
+  const currency = content?.currency || '$';
   const resharedBy = content?.resharedBy;
   const reshareComment = content?.reshareComment;
+  const playerName = message.username || 'Anonymous';
 
   return (
     <div class="cc-win-card">
+      {/* Re-share header */}
       {resharedBy && (
         <div class="cc-win-card__reshare-header">
-          <span class="cc-win-card__reshare-icon">&#8634;</span>
+          <span class="cc-win-card__reshare-icon">{'\u21BA'}</span>
           <span class="cc-win-card__reshare-name">{resharedBy}</span>
-          <span> shared {message.username || 'someone'}'s win:</span>
+          <span>shared {playerName}'s win:</span>
         </div>
       )}
 
-      <div class="cc-msg" style={{ padding: 0 }}>
-        <div class="cc-msg__avatar">
-          {message.avatarUrl ? (
-            <img src={message.avatarUrl} alt="" class="cc-msg__avatar-img" />
-          ) : (
-            <div class="cc-msg__avatar-placeholder">
-              {(message.username || '?')[0]}
-            </div>
-          )}
-        </div>
+      {/* Win card body */}
+      <div
+        class="cc-win-card__card"
+        style={{
+          borderLeftColor: gameColor,
+          background: `linear-gradient(135deg, ${gameColor}15 0%, transparent 60%)`,
+          backgroundColor: '#111827',
+        }}
+      >
+        <div class="cc-win-card__content">
+          {/* Game icon */}
+          <div
+            class="cc-win-card__icon"
+            style={{ backgroundColor: gameColor }}
+          >
+            {game[0]}
+          </div>
 
-        <div class="cc-win-card__card">
-          <div class="cc-win-card__content">
-            <div class="cc-win-card__icon">{gameIcon}</div>
-            <div class="cc-win-card__details">
-              <div class="cc-win-card__header-row">
-                <span class="cc-win-card__username">{message.username || 'Anonymous'}</span>
-                <span class="cc-win-card__won-label">won on</span>
-                <span class="cc-win-card__game">{game}</span>
-              </div>
-              <div class="cc-win-card__amount-row">
-                <span class="cc-win-card__amount">
-                  {win != null ? `${win.toLocaleString()} ${currency}` : '---'}
+          {/* Win details */}
+          <div class="cc-win-card__details">
+            <div class="cc-win-card__header-row">
+              <span class="cc-win-card__username">{playerName}</span>
+              <span class="cc-win-card__won-label">won on</span>
+              <span class="cc-win-card__game">{game}</span>
+            </div>
+            <div class="cc-win-card__amount-row">
+              <span class="cc-win-card__amount">
+                {win != null ? `${currency}${win.toLocaleString()}` : '---'}
+              </span>
+              {multiplier != null && (
+                <span
+                  class="cc-win-card__multiplier"
+                  style={{ backgroundColor: gameColor }}
+                >
+                  x {multiplier}
                 </span>
-                {multiplier != null && (
-                  <span class="cc-win-card__multiplier">x{multiplier}</span>
-                )}
-              </div>
-              {bet != null && (
-                <div class="cc-win-card__bet">Bet: {bet.toLocaleString()} {currency}</div>
               )}
             </div>
+            {bet != null && (
+              <div class="cc-win-card__bet">
+                Bet: {currency}{bet.toLocaleString()}
+              </div>
+            )}
           </div>
+        </div>
 
-          <div class="cc-win-card__actions">
-            <button class="cc-win-card__action cc-win-card__action--play">
-              &#9654; Play This Game
-            </button>
-            <button class="cc-win-card__action cc-win-card__action--share">
-              &#8634; Share
-            </button>
-          </div>
+        {/* Actions */}
+        <div class="cc-win-card__actions">
+          <button class="cc-win-card__action cc-win-card__action--play">
+            {'\u25B6'} Play This Game {'\u25B8'}
+          </button>
+          <button
+            class="cc-win-card__action cc-win-card__action--share"
+            disabled={isGuest}
+            style={isGuest ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+          >
+            {'\u21BA'} Share
+          </button>
         </div>
       </div>
 
+      {/* Re-share comment */}
       {resharedBy && reshareComment && (
         <div class="cc-win-card__reshare-comment">{reshareComment}</div>
       )}

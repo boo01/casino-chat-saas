@@ -36,6 +36,7 @@ export class ChannelService {
         language: createChannelDto.language || 'en',
         description: createChannelDto.description || '',
         sortOrder: createChannelDto.sortOrder || 0,
+        ...(createChannelDto.settings ? { settings: createChannelDto.settings } : {}),
       },
     });
 

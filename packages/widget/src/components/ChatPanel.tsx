@@ -49,6 +49,7 @@ export function ChatPanel({
       <MessageList
         messages={messages}
         currentPlayer={player}
+        isGuest={isGuest}
       />
       <ChatInput
         isGuest={isGuest}

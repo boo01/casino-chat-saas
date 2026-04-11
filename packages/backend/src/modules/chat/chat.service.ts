@@ -10,7 +10,7 @@ import { MessageType, MessageSource } from '@prisma/client';
 interface SendMessagePayload {
   tenantId: string;
   channelId: string;
-  playerId?: string;
+  playerId?: string | null;
   type?: MessageType;
   source?: MessageSource;
   content: Record<string, any>;
@@ -20,9 +20,19 @@ interface SendMessagePayload {
 // Convert BigInt fields to strings for JSON serialization
 function serializeMessage(msg: any): any {
   if (!msg) return msg;
+  const player = msg.player || null;
   return {
     ...msg,
     sequenceNum: msg.sequenceNum?.toString?.() ?? msg.sequenceNum,
+    // Flatten player data for widget consumption
+    username: player?.username || (msg.source === 'OPERATOR' ? 'Admin' : msg.source === 'SYSTEM' ? 'System' : null),
+    avatarUrl: player?.avatarUrl || null,
+    level: player?.level ?? 0,
+    vipStatus: player?.vipStatus || 'NONE',
+    isPremium: player?.isPremium || false,
+    premiumStyle: player?.premiumStyle || null,
+    isModerator: player?.isModerator || msg.source === 'OPERATOR',
+    isStreamer: player?.isStreamer || false,
   };
 }
 
@@ -137,6 +147,20 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
+      include: {
+        player: {
+          select: {
+            username: true,
+            avatarUrl: true,
+            level: true,
+            vipStatus: true,
+            isPremium: true,
+            premiumStyle: true,
+            isModerator: true,
+            isStreamer: true,
+          },
+        },
+      },
     });
 
     const serialized = messages.map(serializeMessage);

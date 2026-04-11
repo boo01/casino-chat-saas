@@ -3,16 +3,17 @@ import type { ChatMessage } from '../types';
 
 interface Props {
   message: ChatMessage;
+  isGuest?: boolean;
 }
 
-export function PromoCard({ message }: Props) {
+export function PromoCard({ message, isGuest }: Props) {
   const { content } = message;
   const title = content?.title || 'Promotion';
   const subtitle = content?.subtitle || '';
   const detailText = content?.detailText || '';
   const ctaText = content?.ctaText || 'Learn More';
   const ctaUrl = content?.ctaUrl;
-  const emoji = content?.emoji || '🎁';
+  const emoji = content?.emoji || '\uD83C\uDF81';
   const accentColor = content?.accentColor || '#6366F1';
 
   const handleCta = () => {

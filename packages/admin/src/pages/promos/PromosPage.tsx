@@ -158,10 +158,17 @@ export function PromosPage() {
     if (!tenantId || !sendToChat || !selectedChannel) return;
     setSending(true);
     try {
-      const text = `🎉 ${sendToChat.title} — ${sendToChat.subtitle}. ${sendToChat.ctaText}: ${sendToChat.ctaUrl}`;
       await api.post(`/tenants/${tenantId}/channels/${selectedChannel}/messages`, {
-        text,
-        type: 'TEXT',
+        text: JSON.stringify({
+          title: sendToChat.title,
+          subtitle: sendToChat.subtitle,
+          detailText: sendToChat.detailText,
+          ctaText: sendToChat.ctaText,
+          ctaUrl: sendToChat.ctaUrl,
+          emoji: sendToChat.emoji,
+          accentColor: sendToChat.accentColor,
+        }),
+        type: 'PROMO',
         source: 'SYSTEM',
       });
       setSendToChat(null);

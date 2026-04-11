@@ -39,8 +39,10 @@ async function main() {
   await prisma.triviaQuestion.deleteMany();
   await prisma.player.deleteMany();
   await prisma.channel.deleteMany();
+  await prisma.tenantCurrency.deleteMany();
   await prisma.tenantAdmin.deleteMany();
   await prisma.tenant.deleteMany();
+  await prisma.currency.deleteMany();
   await prisma.superAdmin.deleteMany();
 
   // ===== PLATFORM LEVEL =====
@@ -57,6 +59,22 @@ async function main() {
   });
 
   console.log('Platform admins created');
+
+  // ===== CURRENCIES =====
+
+  const currencies = await Promise.all([
+    prisma.currency.create({ data: { code: 'USD', name: 'US Dollar', symbol: '$', type: 'FIAT', sortOrder: 0 } }),
+    prisma.currency.create({ data: { code: 'EUR', name: 'Euro', symbol: '€', type: 'FIAT', sortOrder: 1 } }),
+    prisma.currency.create({ data: { code: 'GBP', name: 'British Pound', symbol: '£', type: 'FIAT', sortOrder: 2 } }),
+    prisma.currency.create({ data: { code: 'BTC', name: 'Bitcoin', symbol: '₿', type: 'CRYPTO', sortOrder: 10 } }),
+    prisma.currency.create({ data: { code: 'ETH', name: 'Ethereum', symbol: 'Ξ', type: 'CRYPTO', sortOrder: 11 } }),
+    prisma.currency.create({ data: { code: 'USDT', name: 'Tether', symbol: '₮', type: 'CRYPTO', sortOrder: 12 } }),
+    prisma.currency.create({ data: { code: 'LTC', name: 'Litecoin', symbol: 'Ł', type: 'CRYPTO', sortOrder: 13 } }),
+  ]);
+
+  const [usd, eur, , btc, eth, usdt] = currencies;
+
+  console.log(`  Currencies: ${currencies.length} master, 5 for Lucky Star, 1 for Bet Royal`);
 
   // ===== TENANT 1: Lucky Star Casino (MONETIZE tier) =====
 
@@ -106,6 +124,17 @@ async function main() {
         tenantId: tenant1.id, email: 'support@luckystar.test', passwordHash: supportHash,
         role: 'ADMIN', permissions: ['VIEW_ANALYTICS', 'MANAGE_PLAYERS', 'MANAGE_CHANNELS'],
       },
+    ],
+  });
+
+  // Tenant 1 Currencies
+  await prisma.tenantCurrency.createMany({
+    data: [
+      { tenantId: tenant1.id, currencyId: usd.id, isDefault: true },
+      { tenantId: tenant1.id, currencyId: eur.id },
+      { tenantId: tenant1.id, currencyId: btc.id },
+      { tenantId: tenant1.id, currencyId: eth.id },
+      { tenantId: tenant1.id, currencyId: usdt.id },
     ],
   });
 
@@ -332,6 +361,13 @@ async function main() {
     data: { tenantId: tenant2.id, email: 'owner@betroyal.test', passwordHash: brOwnerHash, role: 'OWNER' },
   });
 
+  // Tenant 2 Currencies
+  await prisma.tenantCurrency.createMany({
+    data: [
+      { tenantId: tenant2.id, currencyId: usd.id, isDefault: true },
+    ],
+  });
+
   await Promise.all([
     prisma.channel.create({ data: { tenantId: tenant2.id, name: 'English', emoji: '🇬🇧', language: 'en', sortOrder: 0 } }),
     prisma.channel.create({ data: { tenantId: tenant2.id, name: 'Spanish', emoji: '🇪🇸', language: 'es', sortOrder: 1 } }),
@@ -367,6 +403,7 @@ async function main() {
   console.log(`  Owner: owner@luckystar.test / Owner123!`);
   console.log(`  Moderator: mod@luckystar.test / Mod123!`);
   console.log(`  Support: support@luckystar.test / Support123!`);
+  console.log(`  Currencies: 5 (USD, EUR, BTC, ETH, USDT)`);
   console.log(`  Channels: 5 | Players: 20 | Messages: 50\n`);
 
   console.log(`Bet Royal (BASIC tier):`);
@@ -374,6 +411,7 @@ async function main() {
   console.log(`  API Key: ${br.apiKey}`);
   console.log(`  API Secret: ${br.apiSecret}`);
   console.log(`  Owner: owner@betroyal.test / Owner123!`);
+  console.log(`  Currencies: 1 (USD)`);
   console.log(`  Channels: 2 | Players: 5`);
 }
 

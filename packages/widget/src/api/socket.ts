@@ -39,6 +39,7 @@ export class ChatSocket {
     this.socket.on('player:left', (data) => this.onPlayerLeft?.(data));
     this.socket.on('player:typing', (data) => this.onTyping?.(data));
     this.socket.on('error', (err) => this.onError?.(err));
+    this.socket.on('chat:error', (err) => this.onError?.(err));
     this.socket.on('disconnect', () => this.onDisconnect?.());
   }
 

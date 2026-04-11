@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, X, Loader2, HelpCircle, Send } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../store/auth';
+import { useTenantCurrencies } from '../../hooks/useTenantCurrencies';
 
 interface Channel {
   id: string;
@@ -62,6 +63,7 @@ export function TriviaPage() {
   const [sending, setSending] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const { currencies: tenantCurrencies } = useTenantCurrencies();
   const tenantId = user?.tenantId;
 
   const fetchTrivia = async () => {
@@ -174,16 +176,15 @@ export function TriviaPage() {
     if (!tenantId || !sendToChat || !selectedChannel) return;
     setSending(true);
     try {
-      const opts = sendToChat.options;
-      const lines = [
-        `🧠 TRIVIA: ${sendToChat.question}`,
-        ...opts.map((o, i) => `${String.fromCharCode(65 + i)}) ${o}`),
-        '',
-        'Reply with your answer!',
-      ];
       await api.post(`/tenants/${tenantId}/channels/${selectedChannel}/messages`, {
-        text: lines.join('\n'),
-        type: 'TEXT',
+        text: JSON.stringify({
+          question: sendToChat.question,
+          options: sendToChat.options,
+          correctIndex: sendToChat.correctIndex,
+          reward: `${sendToChat.rewardAmount} ${sendToChat.rewardCurrency}`,
+          difficulty: sendToChat.difficulty,
+        }),
+        type: 'TRIVIA',
         source: 'SYSTEM',
       });
       setSendToChat(null);
@@ -298,13 +299,21 @@ export function TriviaPage() {
         </div>
         <div>
           <label className="block text-text-muted text-sm mb-1">Currency</label>
-          <input
-            type="text"
+          <select
             value={formData.rewardCurrency}
             onChange={(e) => setFormData((prev) => ({ ...prev, rewardCurrency: e.target.value }))}
             className="w-full bg-[#1F2937] border border-border rounded-lg px-3 py-2 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="USD"
-          />
+          >
+            {tenantCurrencies.length > 0 ? (
+              tenantCurrencies.map((tc) => (
+                <option key={tc.id} value={tc.currency.code}>
+                  {tc.currency.symbol} {tc.currency.code}
+                </option>
+              ))
+            ) : (
+              <option value={formData.rewardCurrency}>{formData.rewardCurrency}</option>
+            )}
+          </select>
         </div>
         <div>
           <label className="block text-text-muted text-sm mb-1">Difficulty</label>

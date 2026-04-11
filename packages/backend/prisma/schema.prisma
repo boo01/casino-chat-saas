@@ -37,6 +37,11 @@ enum TenantTier {
   MONETIZE
 }
 
+enum CurrencyType {
+  FIAT
+  CRYPTO
+}
+
 enum AdminRole {
   OWNER
   ADMIN
@@ -178,6 +183,7 @@ model Tenant {
   promoCards PromoCard[]
   triviaQuestions TriviaQuestion[]
   leaderboardEntries LeaderboardEntry[]
+  tenantCurrencies TenantCurrency[]
 
   @@index([isActive])
   @@index([tier])
@@ -498,4 +504,34 @@ model LeaderboardEntry {
   @@unique([tenantId, playerId, period])
   @@index([tenantId, period])
   @@index([tenantId, period, rank])
+}
+
+// ─── Currency Management ────────────────────────────────────────────────────
+
+model Currency {
+  id        String       @id @default(cuid())
+  code      String       @unique
+  name      String
+  symbol    String
+  type      CurrencyType @default(FIAT)
+  isActive  Boolean      @default(true) @map("is_active")
+  sortOrder Int          @default(0)    @map("sort_order")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  tenantCurrencies TenantCurrency[]
+}
+
+model TenantCurrency {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  currencyId String   @map("currency_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  currency Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, currencyId])
+  @@index([tenantId])
 }

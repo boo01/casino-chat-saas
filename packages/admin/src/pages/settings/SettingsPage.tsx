@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../store/auth';
 import api from '../../api/client';
-import { Copy, Check, RefreshCw, Shield, Globe, Key, Settings } from 'lucide-react';
+import { Copy, Check, RefreshCw, Shield, Globe, Key, Settings, Coins, Loader2 } from 'lucide-react';
 
 const TIER_COLORS: Record<string, string> = {
   BASIC: '#22C55E',
@@ -9,6 +9,23 @@ const TIER_COLORS: Record<string, string> = {
   ENGAGE: '#F59E0B',
   MONETIZE: '#EF4444',
 };
+
+interface MasterCurrency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  type: string;
+  isActive: boolean;
+}
+
+interface TenantCurrencyEntry {
+  id: string;
+  currencyId: string;
+  isDefault: boolean;
+  isActive: boolean;
+  currency: { code: string; name: string; symbol: string; type: string };
+}
 
 interface TenantData {
   id: string;
@@ -43,6 +60,75 @@ export function SettingsPage() {
   // Copy state
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Currency management state
+  const [masterCurrencies, setMasterCurrencies] = useState<MasterCurrency[]>([]);
+  const [tenantCurrencies, setTenantCurrencies] = useState<TenantCurrencyEntry[]>([]);
+  const [currenciesLoading, setCurrenciesLoading] = useState(false);
+  const [currencyAction, setCurrencyAction] = useState<string | null>(null);
+
+  const fetchCurrencies = async () => {
+    if (!tenantId) return;
+    setCurrenciesLoading(true);
+    try {
+      const [masterRes, tenantRes] = await Promise.all([
+        api.get<MasterCurrency[]>('/currencies'),
+        api.get<TenantCurrencyEntry[]>(`/tenants/${tenantId}/currencies`),
+      ]);
+      setMasterCurrencies(masterRes.data.filter((c) => c.isActive));
+      setTenantCurrencies(tenantRes.data);
+    } catch {
+      // Silently fail — currencies section is supplementary
+    } finally {
+      setCurrenciesLoading(false);
+    }
+  };
+
+  const isCurrencyEnabled = (currencyId: string) =>
+    tenantCurrencies.some((tc) => tc.currencyId === currencyId && tc.isActive);
+
+  const getTenantCurrencyEntry = (currencyId: string) =>
+    tenantCurrencies.find((tc) => tc.currencyId === currencyId);
+
+  const isDefaultCurrency = (currencyId: string) => {
+    const entry = getTenantCurrencyEntry(currencyId);
+    return entry?.isDefault === true;
+  };
+
+  const handleToggleCurrency = async (masterCurrency: MasterCurrency) => {
+    if (!tenantId) return;
+    const entry = getTenantCurrencyEntry(masterCurrency.id);
+    setCurrencyAction(masterCurrency.id);
+    try {
+      if (entry) {
+        await api.delete(`/tenants/${tenantId}/currencies/${entry.id}`);
+      } else {
+        await api.post(`/tenants/${tenantId}/currencies`, { currencyId: masterCurrency.id });
+      }
+      await fetchCurrencies();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to update currency';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setCurrencyAction(null);
+    }
+  };
+
+  const handleSetDefault = async (masterCurrency: MasterCurrency) => {
+    if (!tenantId) return;
+    const entry = getTenantCurrencyEntry(masterCurrency.id);
+    if (!entry) return;
+    setCurrencyAction(masterCurrency.id);
+    try {
+      await api.patch(`/tenants/${tenantId}/currencies/${entry.id}/default`);
+      await fetchCurrencies();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to set default currency';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setCurrencyAction(null);
+    }
+  };
+
   useEffect(() => {
     if (!tenantId) return;
     const fetchTenant = async () => {
@@ -62,6 +148,7 @@ export function SettingsPage() {
       }
     };
     fetchTenant();
+    fetchCurrencies();
   }, [tenantId]);
 
   const handleSave = async () => {
@@ -288,6 +375,88 @@ export function SettingsPage() {
                   Regenerating will invalidate the current keys immediately. Update your integration code before regenerating.
                 </p>
               </div>
+            </div>
+
+            {/* Currencies */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Coins size={18} className="text-indigo-400" />
+                <h3 className="text-lg font-semibold text-text-primary">Currencies</h3>
+              </div>
+              <p className="text-sm text-text-muted mb-4">
+                Enable currencies for your platform. Players will see these as available options for rain, tips, and trivia rewards.
+              </p>
+              {currenciesLoading ? (
+                <div className="flex items-center gap-2 text-text-muted text-sm py-4">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading currencies...
+                </div>
+              ) : masterCurrencies.length === 0 ? (
+                <p className="text-text-muted text-sm py-4">
+                  No currencies available. A super admin needs to create currencies first.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {masterCurrencies.map((mc) => {
+                    const enabled = isCurrencyEnabled(mc.id);
+                    const isDefault = isDefaultCurrency(mc.id);
+                    const isActioning = currencyAction === mc.id;
+                    return (
+                      <div
+                        key={mc.id}
+                        className="flex items-center justify-between py-2 px-3 rounded-lg bg-input border border-border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-text-primary font-mono text-sm w-8">{mc.symbol}</span>
+                          <div>
+                            <span className="text-text-primary text-sm font-medium">{mc.code}</span>
+                            <span className="text-text-muted text-xs ml-2">{mc.name}</span>
+                          </div>
+                          <span
+                            className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                              mc.type === 'FIAT'
+                                ? 'bg-green-500/15 text-green-400'
+                                : 'bg-blue-500/15 text-blue-400'
+                            }`}
+                          >
+                            {mc.type}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {enabled && (
+                            <button
+                              onClick={() => handleSetDefault(mc)}
+                              disabled={isDefault || isActioning}
+                              className={`text-xs px-2 py-1 rounded transition-colors ${
+                                isDefault
+                                  ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 cursor-default'
+                                  : 'text-text-muted hover:text-indigo-400 hover:bg-indigo-600/10 border border-border'
+                              }`}
+                              title={isDefault ? 'Default currency' : 'Set as default'}
+                            >
+                              {isDefault ? 'Default' : 'Set Default'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleCurrency(mc)}
+                            disabled={isActioning || (enabled && isDefault)}
+                            title={enabled && isDefault ? 'Cannot disable default currency' : undefined}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              enabled ? 'bg-indigo-600' : 'bg-gray-700'
+                            } ${isActioning || (enabled && isDefault) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CloudRain, Plus, X, Eye, RefreshCw } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../store/auth';
+import { useTenantCurrencies } from '../../hooks/useTenantCurrencies';
 
 interface RainEvent {
   id: string;
@@ -50,10 +51,20 @@ export function RainPage() {
     minLevel: '1',
   });
 
+  const { currencies: tenantCurrencies } = useTenantCurrencies();
+
   const [channels, setChannels] = useState<{ id: string; name: string; emoji: string }[]>([]);
 
   const [detailEvent, setDetailEvent] = useState<RainEvent | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Set default currency from tenant currencies
+  useEffect(() => {
+    if (tenantCurrencies.length > 0 && form.currency === 'USD') {
+      const defaultCurrency = tenantCurrencies.find((c) => c.isDefault) || tenantCurrencies[0];
+      setForm((prev) => ({ ...prev, currency: defaultCurrency.currency.code }));
+    }
+  }, [tenantCurrencies]);
 
   // Fetch channels for the dropdown
   useEffect(() => {
@@ -95,6 +106,15 @@ export function RainPage() {
       })
       .catch((err) => setFormError(err.response?.data?.message || 'Failed to trigger rain'))
       .finally(() => setSubmitting(false));
+  };
+
+  const handleCancel = (id: string) => {
+    if (!tenantId) return;
+    if (!confirm('Are you sure you want to cancel this rain event?')) return;
+    api
+      .post(`/tenants/${tenantId}/rain/${id}/cancel`)
+      .then(() => fetchEvents())
+      .catch((err) => alert(err.response?.data?.message || 'Failed to cancel rain'));
   };
 
   const viewDetail = (id: string) => {
@@ -190,13 +210,24 @@ export function RainPage() {
                   <td className="p-4 text-text-secondary">{ev.minLevel}</td>
                   <td className="p-4 text-text-muted text-sm">{new Date(ev.createdAt).toLocaleString()}</td>
                   <td className="p-4">
-                    <button
-                      onClick={() => viewDetail(ev.id)}
-                      className="text-indigo-400 hover:text-indigo-300 transition-colors"
-                      title="View details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => viewDetail(ev.id)}
+                        className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                        title="View details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      {ev.status === 'ACTIVE' && (
+                        <button
+                          onClick={() => handleCancel(ev.id)}
+                          className="text-red-400 hover:text-red-300 transition-colors text-xs font-medium px-2 py-1 bg-red-900/20 border border-red-800 rounded"
+                          title="Cancel rain event"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -253,13 +284,22 @@ export function RainPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-text-muted mb-1">Currency</label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={form.currency}
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}
                     className="w-full bg-input border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-indigo-500"
-                  />
+                  >
+                    {tenantCurrencies.length > 0 ? (
+                      tenantCurrencies.map((tc) => (
+                        <option key={tc.id} value={tc.currency.code}>
+                          {tc.currency.symbol} {tc.currency.code}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={form.currency}>{form.currency}</option>
+                    )}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -286,6 +326,10 @@ export function RainPage() {
                   />
                 </div>
               </div>
+              <p className="text-xs text-text-muted bg-page rounded-lg p-3">
+                Players with level &gt;= min level in the selected channel can collect.
+                Amount per player is calculated based on the number of claimants when the rain ends.
+              </p>
               <button
                 type="submit"
                 disabled={submitting}

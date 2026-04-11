@@ -22,13 +22,16 @@ export class RainService {
     const channel = await this.prisma.channel.findFirst({ where: { id: data.channelId, tenantId } });
     if (!channel) throw new NotFoundException('Channel not found');
 
+    // perPlayerAmount starts at 0 — it will be calculated when rain ends based on actual claimants
+    const perPlayerAmount = data.perPlayerAmount > 0 ? data.perPlayerAmount : 0;
+
     const rain = await this.prisma.rainEvent.create({
       data: {
         tenantId,
         channelId: data.channelId,
         initiatedById: data.initiatedById,
         totalAmount: data.totalAmount,
-        perPlayerAmount: data.perPlayerAmount,
+        perPlayerAmount,
         durationSeconds: data.durationSeconds,
         minLevel: data.minLevel || 1,
         minWagered: data.minWagered || 0,
@@ -70,6 +73,26 @@ export class RainService {
     });
 
     return claim;
+  }
+
+  async cancelRain(tenantId: string, rainId: string) {
+    const rain = await this.prisma.rainEvent.findFirst({
+      where: { id: rainId, tenantId },
+    });
+    if (!rain) throw new NotFoundException('Rain event not found');
+    if (rain.status !== RainStatus.ACTIVE) {
+      throw new BadRequestException('Only ACTIVE rain events can be cancelled');
+    }
+
+    const updated = await this.prisma.rainEvent.update({
+      where: { id: rainId },
+      data: { status: RainStatus.CANCELLED },
+    });
+
+    // Remove from Redis
+    await this.redis.del(`rain:${tenantId}:${rainId}`);
+
+    return updated;
   }
 
   async findAll(tenantId: string) {

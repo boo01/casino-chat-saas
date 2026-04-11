@@ -18,6 +18,7 @@ import {
   Code2,
   Eye,
   Radio,
+  Coins,
 } from 'lucide-react';
 
 interface NavItem {
@@ -44,16 +45,29 @@ const navItems: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/super-admin/tenants', label: 'Tenants', icon: Building2, superAdminOnly: true },
   { to: '/super-admin/admins', label: 'Admins', icon: UserCog, superAdminOnly: true },
+  { to: '/super-admin/currencies', label: 'Currencies', icon: Coins, superAdminOnly: true },
 ];
 
 export function DashboardLayout() {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const isSuperAdmin = user?.isSuperAdmin === true;
+  const isImpersonating = !!sessionStorage.getItem('superadmin_token');
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleExitImpersonation = () => {
+    const saToken = sessionStorage.getItem('superadmin_token');
+    const saUser = sessionStorage.getItem('superadmin_user');
+    if (saToken && saUser) {
+      login(saToken, JSON.parse(saUser));
+      sessionStorage.removeItem('superadmin_token');
+      sessionStorage.removeItem('superadmin_user');
+      navigate('/super-admin/tenants');
+    }
   };
 
   const visibleItems = navItems.filter((item) => {
@@ -106,6 +120,19 @@ export function DashboardLayout() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
+        {isImpersonating && (
+          <div className="bg-amber-600 text-white px-4 py-2 text-sm flex items-center justify-between">
+            <span>
+              You are viewing as <strong>{user?.email}</strong> (impersonating tenant)
+            </span>
+            <button
+              onClick={handleExitImpersonation}
+              className="bg-white text-amber-700 px-3 py-1 rounded text-xs font-bold"
+            >
+              Exit Impersonation
+            </button>
+          </div>
+        )}
         <div className="p-6">
           <Outlet />
         </div>

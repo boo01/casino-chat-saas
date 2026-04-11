@@ -15,6 +15,7 @@ import { RainPage } from './pages/rain/RainPage';
 import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
 import { TenantsPage } from './pages/super-admin/TenantsPage';
 import { AdminsPage } from './pages/super-admin/AdminsPage';
+import { CurrenciesPage } from './pages/super-admin/CurrenciesPage';
 import { IntegrationPage } from './pages/integration/IntegrationPage';
 import { ChatPreviewPage } from './pages/chat-preview/ChatPreviewPage';
 import { LiveChatPage } from './pages/live-chat/LiveChatPage';
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="super-admin/tenants" element={<TenantsPage />} />
           <Route path="super-admin/admins" element={<AdminsPage />} />
+          <Route path="super-admin/currencies" element={<CurrenciesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
